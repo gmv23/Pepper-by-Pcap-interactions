@@ -22,7 +22,7 @@ pep$New <- as.factor(pep$New)
 
 #####################    Loop through peppers and fit separate model for each pepper    #########################
 
-#Scramble K for the fuck of it
+#Scramble K to see what happens
 #G_rowNames <- attr(Ginv, "rowNames")[1:(length(attr(Ginv, "rowNames"))-3)]
 #G_rowNames_scramble <- sample(G_rowNames, size=length(G_rowNames), replace=F)
 #attr(Ginv, "rowNames") <- c(G_rowNames_scramble, "CHECK1", "CHECK2", "CHECK3")
