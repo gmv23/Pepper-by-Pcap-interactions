@@ -13,12 +13,19 @@ pep$Column <- as.factor(pep$Column)
 
 #Read in data frame with lower triangle of inverse relationshp matrix
 Ginv <- readRDS("data/K_ginv.rds")
-
+rownames(Ginv) <- NULL
 #Make dummy variables
 check_rows <- which(pep$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"))
 pep$New <- rep(2, nrow(pep))
 pep$New[check_rows] <- 1
 pep$New <- as.factor(pep$New)
+
+############################################# test ###########################
+#Give the checks their actual names
+pep$Isolate[pep$Isolate == "CHECK1"] <- "SJV_CAA"
+pep$Isolate[pep$Isolate == "CHECK2"] <- "17EH01C"
+pep$Isolate[pep$Isolate == "CHECK3"] <- "G_3A_4A_C5"
+pep$Isolate <- droplevels(pep$Isolate)
 
 #####################    Loop through peppers and fit separate model for each pepper    #########################
 
@@ -29,12 +36,16 @@ pep$New <- as.factor(pep$New)
 
 #Function to get residual error as percentage of all variance components
 get_residual_error_percent <- function(model.as){
-	res_error <- model.as$gammas["R!variance"]
-	total_error <- sum(model.as$gammas)
+	res_error <- model.as$vparameters["units!R"]
+	total_error <- sum(model.as$vparameters)
 	return(res_error/total_error)
 }
 
+<<<<<<< HEAD
 peppers <- "RedKnight"
+=======
+peppers <- "Aristotle"
+>>>>>>> 7385d7814540331318232030da43136a8aac8a81
 #peppers <- levels(pep$Pepper)
 
 #Set up data frame to store residual errors of different models
@@ -65,6 +76,10 @@ for(i in 1:length(peppers)){
 		random = ~ at(New, 2):Isolate + Rep:Block,
 		data = pep.sub)
 
+	mod2 <- asreml(fixed = audpc ~ Rep,
+		       random = ~ Isolate + Rep:Block,
+		       data=pep.sub)
+
 	#Pull out residual error variance component as a percentage
 	res_error.raw <- get_residual_error_percent(mod.raw)
 	res_error.log <- get_residual_error_percent(mod.log)
@@ -75,8 +90,12 @@ for(i in 1:length(peppers)){
 		mod <- mod.raw
 	}else{
 		mod <- mod.log
-		pep.sub$audpc <- log(pep.sub$audpc + 1)
+#		pep.sub$audpc <- log(pep.sub$audpc + 1)
 	}
+
+	##############
+	mod <- mod.raw #also uncomment above in choose model
+	###############
 
 	#Append residuals and fitted values to lists
 	res[[i]] <- mod$residuals
@@ -89,8 +108,8 @@ for(i in 1:length(peppers)){
 	n_harm <- length(r)/sum(1/r)
 
 	#Calculate broad-sense heritability
-	H2 <- mod$gammas["at(New, 2):Isolate!Isolate.var"]/
-	      (mod$gammas["at(New, 2):Isolate!Isolate.var"] + mod$gammas["R!variance"])
+	H2 <- mod$vparameters["at(New, 2):Isolate"]/
+	      (mod$vparameters["at(New, 2):Isolate"] + mod$vparameters["units!R"])
 
 	#Only save H2 for traits that are replicated
 	if(round(n_harm) > 1){
@@ -100,13 +119,16 @@ for(i in 1:length(peppers)){
 	#Now run model with genomic relationship matrix
 	mod.GBLUP <- asreml(fixed = audpc ~ at(New, 1):Isolate + Rep,
 			 random = ~ Rep:Block +
-			 at(New, 2):ped(Isolate, var=T),
-    			 ginverse=list(Isolate=Ginv),
+			 at(New, 2):vm(Isolate, Ginv),
 			 data = pep.sub)
 
+	mod.GBLUP2 <- asreml(fixed = audpc ~ Rep,
+		       random = ~ vm(Isolate, Ginv) + Rep:Block,
+		       data=pep.sub)
+
 	#Get narrow sense heritability
-	h2 <- mod.GBLUP$gammas["at(New, 2):ped(Isolate, var = T)!ped"]/
-	      (mod.GBLUP$gammas["at(New, 2):ped(Isolate, var = T)!ped"] +
-	       mod.GBLUP$gammas["R!variance"])
+	h2 <- mod.GBLUP$vparameters["at(New, 2):vm(Isolate, Ginv)"]/
+	      (mod.GBLUP$vparameters["at(New, 2):vm(Isolate, Ginv)"] +
+	       mod.GBLUP$vparameters["units!R"])
 	h2s[i] <- h2
 }
