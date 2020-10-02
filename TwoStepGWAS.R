@@ -200,7 +200,7 @@ for(i in 1:n_permutations){
   K_scramble <- K[scramble_order, scramble_order]
   scanAnnot.scramble <- ScanAnnotationDataFrame(scanAnnot.scramble.df)
   genoScramble <- GenotypeData(geno.gds, scanAnnot = scanAnnot.scramble)
-  null_scramble <- fitNullModel(scanAnnot.scramble, outcome = "Aristotle", covars = c("PC1", "PC2", "PC3", "PC4"),
+  null_scramble <- fitNullModel(scanAnnot.scramble, outcome = "Aristotle", covars = c("PC1", "PC2", "PC3"),
                                 family = gaussian)
   genoIterator <- GenotypeBlockIterator(genoScramble,snpBlock = 10000)
   assocSCRAMBLE <- assocTestSingle(gdsobj=genoIterator, null.model=null_scramble)
@@ -253,7 +253,7 @@ h2s[3,2:4] <- unlist(varcomp[1,])
 genoIterator <- GenotypeBlockIterator(genoData,snpBlock = 10000)
 
 #Run association tests
-assoc <- assocTestSingle(gdsobj=genoIterator, null.model=modK)
+assoc <- assocTestSingle(gdsobj=genoIterator, null.model=mod_K)
 assoc$chr <- snps$CHROM #Provide correct chromosome names
 pvalues[,3] <- assoc$Score.pval
 
@@ -646,7 +646,7 @@ h2s[9,2:4] <- unlist(varcomp[1,])
 genoIterator <- GenotypeBlockIterator(genoData,snpBlock = 10000)
 
 #Run association tests
-assoc <- assocTestSingle(gdsobj=genoIterator, null.model=mod_Q2)
+assoc <- assocTestSingle(gdsobj=genoIterator, null.model=mod_Q3)
 assoc$chr <- snps$CHROM #Provide correct chromosome names
 pvalues[,9] <- assoc$Score.pval
 
