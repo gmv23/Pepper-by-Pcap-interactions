@@ -1,6 +1,7 @@
 setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pheno/")
 
 library(reshape2)
+library(lme4)
 
 #Import data
 pep <- read.csv("data/Ratings_filt.csv", na.strings = "NA") 
