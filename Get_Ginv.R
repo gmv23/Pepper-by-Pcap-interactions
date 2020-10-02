@@ -3,6 +3,7 @@
 
 setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pheno/")
 library(rrBLUP)
+library(matrixcalc)
 
 #Load geno data
 geno <- read.table("../../../isolate_collection/paper/pop_structure/capsici_diversity_PG.012")
@@ -42,12 +43,27 @@ mafs <- apply(geno, 2, maf)
 
 sum(mafs<minMAF)
 geno <- geno[,-which(mafs<minMAF)]
+rownames(geno) <- indvs
 snps <- snps[-which(mafs<minMAF),]
 
+geno <- geno[order(rownames(geno)),]
+
+#Calculate genomic relationship matrix
 K <- A.mat(geno-1)
-rownames(K) <- indvs
-colnames(K) <- indvs
-colnames(geno_gwas)[4:ncol(geno_gwas)] <- indvs
+
+#Need to add arbitrary elements for Check1, Check2, Check3 so that all isolates are represented
+#K <- cbind(K, matrix(0, nrow=nrow(K), ncol=3))
+#K <- rbind(K, matrix(0, nrow=3, ncol=ncol(K)))
+#pad_indices <- (ncol(K)-2):ncol(K)
+#diag(K)[pad_indices] <- rep(1,3)
+#rownames(K) <- c(indvs, "CHECK1", "CHECK2", "CHECK3")
+#colnames(K) <- c(indvs, "CHECK1", "CHECK2", "CHECK3")
+
+#If matrix is not positive semi definite, then add 10^-6 to the diagonal
+if(!is.positive.definite(K)){
+  diag(K) <- diag(K) + 10^-6
+}
+
 
 Get_ginv <- function(mat, digits=10){
   require(MASS)
@@ -73,18 +89,28 @@ Get_ginv <- function(mat, digits=10){
   # Sort by row and column within row. This is an 
   # ASReml requirement.
   lg.mat <- lg.mat[order(lg.mat$Row, lg.mat$Column),]
-  # Remove entries that are zero on the off diag.
-  # ASReml assumes that non diagonal entries ommitted are
-  # zero, so removing them is a form of compression.
-  lg.mat <- lg.mat[!lg.mat$coeff == 0,]
+  #Turn into matrix
+  lg.mat <- as.matrix(lg.mat)
   #Create row name attribute
   K.rownames <- row.names(mat)
   names(K.rownames) <- NULL
   attr(lg.mat, "rowNames") <- K.rownames
-  # Return data frame
+  #Create "INVERSE" attribute
+  attr(lg.mat, "INVERSE") <- TRUE
+  # Return 
   return(lg.mat)
 }
 
 K.ginv <- Get_ginv(K)
 
 saveRDS(K.ginv, "data/K_ginv.rds")
+saveRDS(K, "data/K.rds")
+write.csv(geno, "data/geno_filt.csv", quote=F, row.names = T)
+write.csv(snps, "data/snps_filt.csv", quote=F, row.names=F)
+
+
+#Get Pcs
+library(pcaMethods)
+geno.pca <- pca(geno, nPcs = 4, method = "nipals")
+write.csv(geno.pca@scores, "data/pcs.csv", quote=F, row.names=T)
+
