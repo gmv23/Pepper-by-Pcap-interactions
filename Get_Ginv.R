@@ -111,6 +111,12 @@ write.csv(snps, "data/snps_filt.csv", quote=F, row.names=F)
 
 #Get Pcs
 library(pcaMethods)
-geno.pca <- pca(geno, nPcs = 4, method = "nipals")
+geno.pca <- pca(geno, nPcs = 4, method = "nipals", scale="uv")
 write.csv(geno.pca@scores, "data/pcs.csv", quote=F, row.names=T)
+
+write.table(snps, "data/GWAS_positions.txt", col.names = F, row.names = F, quote=F)
+gwas_indvs <- rownames(geno)
+gwas_indvs[gwas_indvs == "14_55"] <- "14_55C"
+gwas_indvs[gwas_indvs == "17PZ21A"] <- "17PZ18A"
+write.table(gwas_indvs, "data/GWAS_individuals.txt", col.names=F, row.names=F, quote=F)
 
