@@ -50,6 +50,13 @@ informative_peppers <- names(which(percent_virulent > 0.15))
 length(informative_peppers)
 pep.filt <- pep[pep$Pepper %in% informative_peppers,]
 
+#Pull out non-pathogenic isolates --- remove them from data for further analysis
+pathogenic <- apply(interact_means.wide[,-1], 1, function(x) all(x==0))
+pathogenic_isolates <- interact_means.wide$Isolate[pathogenic]
+length(pathogenic_isolates)
+as.character(pathogenic_isolates)
+pep.filt <- pep.filt[!pep.filt$Isolate %in% pathogenic_isolates,]
+
 #Write clean pheno data
 write.csv(pep, "data/Ratings_clean.csv", quote=F, row.names = F)
 write.csv(pep.filt, "data/Ratings_filt.csv", quote=F, row.names = F)
