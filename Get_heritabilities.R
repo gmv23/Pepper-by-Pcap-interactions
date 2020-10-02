@@ -34,8 +34,8 @@ get_residual_error_percent <- function(model.as){
 	return(res_error/total_error)
 }
 
-#peppers <- "RedKnight"
-peppers <- levels(pep$Pepper)
+peppers <- "RedKnight"
+#peppers <- levels(pep$Pepper)
 
 #Set up data frame to store residual errors of different models
 res_errors <- data.frame("Pepper" = peppers, "Raw" = NA, "Log" = NA)
