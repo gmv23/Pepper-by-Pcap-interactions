@@ -1,4 +1,4 @@
-setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pheno/")
+setwd("/workdir/gmv23/peppers/pheno")
 library(rrBLUP)
 library(GENESIS)
 library(GWASTools)
