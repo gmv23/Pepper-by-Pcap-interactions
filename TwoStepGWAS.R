@@ -3,6 +3,7 @@ library(rrBLUP)
 library(GENESIS)
 library(GWASTools)
 library(SNPRelate)
+library(matrixcalc)
 
 #################################   Load and clean data   ################################
 
@@ -326,9 +327,15 @@ pvalues[,4] <- assoc$Score.pval
 scrambled_pvals <- matrix(NA, nrow=n_permutations, ncol=nrow(snps))
 for(i in 1:n_permutations){
   scanAnnot.scramble.df <- scanAnnot.df
-  scramble_order <- sample(1:nrow(scanAnnot.scramble.df), nrow(scanAnnot.scramble.df), replace=F)
+  find_order <- F
+  while(find_order == F){
+    scramble_order <- sample(1:nrow(scanAnnot.scramble.df), nrow(scanAnnot.scramble.df), replace=F)
+    K_scramble <- K[scramble_order, scramble_order]
+    if(is.positive.semi.definite(K_scramble)){
+      find_order <- T
+    }
+  }
   scanAnnot.scramble.df[,2:ncol(scanAnnot.scramble.df)] <- scanAnnot.scramble.df[scramble_order,2:ncol(scanAnnot.scramble.df)]
-  K_scramble <- K[scramble_order, scramble_order]
   scanAnnot.scramble <- ScanAnnotationDataFrame(scanAnnot.scramble.df)
   genoScramble <- GenotypeData(geno.gds, scanAnnot = scanAnnot.scramble)
   null_scramble <- fitNullModel(scanAnnot.scramble, outcome = "NMRIL.N", covars = c("PC1", "PC2", "PC3"),
