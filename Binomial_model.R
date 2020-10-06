@@ -27,7 +27,7 @@ pep$New <- as.factor(pep$New)
 <<<<<<< HEAD
 #####################    Loop through peppers and fit separate model for each pepper    #########################
 
-#Scramble K for the fuck of it
+#Scramble K for the hell of it
 =======
 ######################Test
 pep$Isolate[pep$Isolate=="CHECK1"] <- "SJV_CAA"
