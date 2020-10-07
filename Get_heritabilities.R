@@ -29,7 +29,6 @@ pep$Isolate <- droplevels(pep$Isolate)
 
 #####################    Loop through peppers and fit separate model for each pepper    #########################
 
-#Scramble K for the fuck of it
 #G_rowNames <- attr(Ginv, "rowNames")[1:(length(attr(Ginv, "rowNames"))-3)]
 #G_rowNames_scramble <- sample(G_rowNames, size=length(G_rowNames), replace=F)
 #attr(Ginv, "rowNames") <- c(G_rowNames_scramble, "CHECK1", "CHECK2", "CHECK3")
@@ -41,7 +40,6 @@ get_residual_error_percent <- function(model.as){
 	return(res_error/total_error)
 }
 
-peppers <- "Paladin"
 #peppers <- levels(pep$Pepper)
 
 #Set up data frame to store residual errors of different models

@@ -21,7 +21,7 @@ mean_disease <- apply(interact_means.wide[,-1], 2, mean, na.rm=T)
 mean_disease <- sort(mean_disease, decreasing=T)
 
 blups.sort <- blups[,names(mean_disease)]
-pdf("plots/interaction_matrix.pdf")
+pdf("plots/interaction_matrix_asblups.pdf")
 old.par <- par(no.readonly = T)
 par(mfrow=c(11,11), oma=c(1,1,0.5,0.5), mar=c(0,0,0,0))
 for(i in 1:nrow(blups.sort)){

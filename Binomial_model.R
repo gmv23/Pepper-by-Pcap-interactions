@@ -13,13 +13,22 @@ pep$Column <- as.factor(pep$Column)
 
 #Read in data frame with lower triangle of inverse relationshp matrix
 Ginv <- readRDS("data/K_ginv.rds")
+<<<<<<< HEAD
+
+=======
 K <- readRDS("data/K.rds")
+>>>>>>> 7385d7814540331318232030da43136a8aac8a81
 #Make dummy variables
 check_rows <- which(pep$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"))
 pep$New <- rep(2, nrow(pep))
 pep$New[check_rows] <- 1
 pep$New <- as.factor(pep$New)
 
+<<<<<<< HEAD
+#####################    Loop through peppers and fit separate model for each pepper    #########################
+
+#Scramble K for the hell of it
+=======
 ######################Test
 pep$Isolate[pep$Isolate=="CHECK1"] <- "SJV_CAA"
 pep$Isolate[pep$Isolate=="CHECK2"] <- "17EH01C"
@@ -29,11 +38,16 @@ pep$Isolate <- droplevels(pep$Isolate)
 #####################    Loop through peppers and fit separate model for each pepper    #########################
 
 #Scramble K to see what happens
+>>>>>>> 7385d7814540331318232030da43136a8aac8a81
 #G_rowNames <- attr(Ginv, "rowNames")[1:(length(attr(Ginv, "rowNames"))-3)]
 #G_rowNames_scramble <- sample(G_rowNames, size=length(G_rowNames), replace=F)
 #attr(Ginv, "rowNames") <- c(G_rowNames_scramble, "CHECK1", "CHECK2", "CHECK3")
 
+<<<<<<< HEAD
+peppers <- "RedKnight"
+=======
 peppers <- "Aristotle"
+>>>>>>> 7385d7814540331318232030da43136a8aac8a81
 #peppers <- levels(pep$Pepper)
 
 #Set up lists to store residuals and fitted values
@@ -51,6 +65,27 @@ for(i in 1:length(peppers)){
 	pepper <- peppers[i]
 	pep.sub <- pep[pep$Pepper == pepper,]
 
+<<<<<<< HEAD
+	#Fit model with non-transformed and log-transformed audpc
+	mod.bin <- asreml(fixed = Dpi15 ~ at(New, 1):Isolate + Rep,
+	       random = ~ at(New, 2):Isolate + Rep:Block,
+	       data = pep.sub,
+	       family = asr_binomial(link="logit", total=Plot_no))
+
+	#Append residuals and fitted values to lists
+#	res[[i]] <- mod$residuals
+#	fit[[i]] <- mod$fitted.values
+
+	#Get harmonic mean of number reps
+
+	#Calculate broad-sense heritability
+
+	#Only save H2 for traits that are replicated
+
+	#Now run model with genomic relationship matrix
+
+	#Get narrow sense heritability
+=======
 	#Fit model without relationship matrix
 	mod <- asreml(fixed = Dpi15 ~ at(New, 1):Isolate + Rep,
 	       random = ~ at(New, 2):Isolate + Rep:Block,
@@ -113,4 +148,5 @@ for(i in 1:length(peppers)){
 	      (mod.GBLUP$vparameters["at(New, 2):vm(Isolate, Ginv)"] + error_variance)
 	h2s[i] <- h2
 
+>>>>>>> 7385d7814540331318232030da43136a8aac8a81
 }
