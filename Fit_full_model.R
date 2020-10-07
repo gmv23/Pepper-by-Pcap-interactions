@@ -45,7 +45,7 @@ pep.main.blues <- pep.main.blues[!pep.main.blues$Isolate %in% c("CHECK1", "CHECK
 
 pep.full.blues$main <- pep.main.blues$predicted.value[match(pep.full.blues$Isolate, pep.main.blues$Isolate)]
 
-write.csv(pep.full.blups, "data/virulence_blues.csv", quote=F, row.names=F)
+write.csv(pep.full.blues, "data/virulence_blues.csv", quote=F, row.names=F)
 
 
 skip <- function(){
