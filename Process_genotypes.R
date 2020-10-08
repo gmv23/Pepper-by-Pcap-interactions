@@ -89,6 +89,6 @@ system(paste("sed 's/17PZ18A/17PZ21A/' data/capsici_pepper_subset_rename.recode.
 
 system("rm data/capsici_pepper_subset_rename.recode.vcf")
 
-system("vcftools --vcf data/capsici_pepper_subset.vcf --012 --out data/capsici_pepper_subset")
+system("vcftools --vcf data/capsici_pepper_subset.vcf --012 --out")
 
 
