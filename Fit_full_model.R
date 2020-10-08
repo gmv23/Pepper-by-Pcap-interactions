@@ -1,6 +1,6 @@
 #usr/bin/R env
 
-setwd("/workdir/gmv23/peppers/pheno/asreml")
+setwd("/workdir/gmv23/peppers/models/")
 
 library(asreml)
 library(reshape2)
@@ -18,10 +18,37 @@ pep$New <- rep(2, nrow(pep))
 pep$New[check_rows] <- 1
 pep$New <- as.factor(pep$New)
 
+#pep <- pep[order(pep$Pepper),]
 #Fit full model
-pep.full <- asreml(fixed = audpc ~ at(New, 1):Isolate + at(New, 1):Isolate:Pepper + Rep,
-		   random = ~ at(New, 2):Isolate +  Rep:Block/Tray + Pepper + at(New, 2):Isolate:Pepper,
-		   data = pep)
+
+mod <- asreml(fixed = audpc ~ Isolate + Pepper + Isolate:Pepper + Rep,
+		   random = ~ Rep:Block/Tray,
+		   data = pep, na.action=na.method(x="include",y="include"))
+
+#mod2 <- asreml(fixed = audpc ~ Isolate + Pepper + Isolate:Pepper + Rep,
+#		   random = ~ Rep:Block/Tray,
+#		   residual = ~ dsum(~id(units) | Pepper),
+#		   data = pep, maxit=500)
+
+
+#Get pepper-specific BLUPs and main-effect BLUPs
+pep.full.predict <- predict(mod,
+		    classify = "Isolate:Pepper",
+		    present = c("Isolate", "Pepper"))
+pep.full.blues <- pep.full.predict$pvals
+pep.full.blues <- pep.full.blues[!pep.full.blues$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"),]
+pep.full.blues <- dcast(Isolate~Pepper, value.var="predicted.value", data=pep.full.blues)
+
+pep.main.predict <- predict(mod, classify="Isolate")
+pep.main.blues <- pep.main.predict$pvals
+pep.main.blues <- pep.main.blues[!pep.main.blues$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"),]
+
+pep.full.blues$main <- pep.main.blues$predicted.value[match(pep.full.blues$Isolate, pep.main.blues$Isolate)]
+
+write.csv(pep.full.blues, "data/virulence_blues.csv", quote=F, row.names=F)
+
+
+skip <- function(){
 
 #Function to supply nested asreml models and get LRT p-value for random term
 LRT <- function(mod.full, mod.red, df){
@@ -92,5 +119,32 @@ pep.full.blups.wide <- dcast(Isolate~Pepper, value.var="predicted.value", data=p
 
 write.csv(pep.full.blups.wide, "out/full_blups.csv", quote=F, row.names=F)
 
+pep.full.predict <- predict(mod,
+		    classify = "Isolate:Pepper")
+pep.full.blups <- pep.full.predict$pvals
+pep.full.blups <- pep.full.blups[!pep.full.blups$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"),]
+pep.full.blups <- dcast(Isolate~Pepper, value.var="predicted.value", data=pep.full.blups)
+
+pep.sub.blups <- pep.full.blups
+pep.sub.blups[,2:ncol(pep.sub.blups)] <- NA
+
+peppers <- levels(pep$Pepper)
+for(i in 1:length(peppers)){
+	
+	pepper <- peppers[i]
+	pep.sub <- pep[pep$Pepper == pepper,]
+	pep.sub$Isolate <- droplevels(pep.sub$Isolate)
+	
+	mod.sub <- asreml(fixed = audpc ~ Isolate + Rep,
+			  random = ~ Rep:Block,
+			  data= pep.sub)
+
+	mod.sub.predict <- predict(mod.sub, classify="Isolate")
+	mod.sub.blups <- mod.sub.predict$pvals
+	
+	pep.sub.blups[,pepper] <- mod.sub.blups$predicted.value[match(pep.sub.blups$Isolate, mod.sub.blups$Isolate)]
+}
 
 
+
+}

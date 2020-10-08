@@ -21,6 +21,15 @@ K <- as.matrix(K)
 K <- K[order(rownames(K)), order(colnames(K))]
 ###
 
+#Scramble K
+#row_order <- rownames(K)
+#col_order <- colnames(K)
+#scramble_order <- sample(1:nrow(K), nrow(K), replace=F)
+#K <- K[scramble_order, scramble_order]
+#rownames(K) <- row_order
+#colnames(K) <- col_order
+
+
 check_rows <- which(pep$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"))
 pep$New <- rep(2, nrow(pep))
 pep$New[check_rows] <- 1
@@ -28,8 +37,8 @@ pep$New <- as.factor(pep$New)
 
 #####################    Loop through peppers and fit separate model for each pepper    #########################
 
-peppers <- levels(pep$Pepper)
-#peppers <- "RedKnight"
+#peppers <- levels(pep$Pepper)
+peppers <- "RedKnight"
 
 #Set up matrices to store heritabilities
 H2s <- matrix(NA,ncol=2, nrow=length(peppers), dimnames=list(peppers, c("H2", "SE")))
@@ -42,6 +51,10 @@ names(blup_correlations) <- peppers
 #Set up vector to store x-validation results
 xval_accuracies <- rep(NA, length(peppers))
 names(xval_accuracies) <- peppers
+
+#Set up vector to store residual variances
+res <- rep(NA, length(peppers))
+names(res) <- peppers
 
 for(i in 1:length(peppers)){
 
@@ -57,12 +70,14 @@ for(i in 1:length(peppers)){
 
 	mod <- asreml(fixed = audpc ~ at(New, 1):Isolate + Rep,
 			 random = ~ at(New, 2):Isolate + Rep:Block,
-			 data = pep.sub, na.action = na.method(x="include",y="include"))
+			 data = pep.sub, na.action = na.method(x="include",y="include"), maxit=500)
 
 	mod.GBLUP <- asreml(fixed = audpc ~ at(New, 1):Isolate + Rep,
 			 random = ~ Rep:Block +
 			 at(New, 2):vm(Isolate, K_sub),
-			 data = pep.sub, na.action = na.method(x="include",y="include"))
+			 data = pep.sub, na.action = na.method(x="include",y="include"), maxit=500)
+
+	res[i] <- mod$sigma2
 
 	#Calculate heritabilities
 	
@@ -76,7 +91,7 @@ for(i in 1:length(peppers)){
 	blup_correlations[i] <- cor(mod.predict$predicted.value, mod.GBLUP.predict$predicted.value)
 
 	#Cross_validation
-	n_vals <- 20
+	n_vals <- 1
 	accuracies <- rep(NA, n_vals)
 	for(j in 1:n_vals){
 		pep.miss <- pep.sub
@@ -95,3 +110,8 @@ for(i in 1:length(peppers)){
 	xval_accuracies[i] <- median(accuracies)
 
 }
+
+print(H2s)
+print(h2s)
+print(blup_correlations)
+print(xval_accuracies)
