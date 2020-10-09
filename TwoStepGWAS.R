@@ -15,6 +15,8 @@ geno.gds <- GdsGenotypeReader("data/capsici_pepper_subset.gds")
 #Read geno as 012 file
 geno <- read.table("../geno/data/capsici_pepper_subset.012")
 geno$V1 <- NULL #Get rid of row names
+geno <- as.matrix(geno)
+geno[geno==-1] <- NA
 
 #Read marker positions
 snps <- read.table("../geno/data/capsici_pepper_subset.012.pos")
@@ -194,92 +196,69 @@ write.csv(pvals_write, "data/gwas_pvalues.csv", quote=F, row.names=F)
 
 ###########################################        Plot results        ########################################
 
-jpeg("plots/GWAS_results.jpeg", width=7, height=10, units="in",res=100)
+#Function to draw stacked manhattan and qq plots
+draw_plots <- function(pvals.plot, name){
+  
+  require(qqman)  
+  
+  n.plots <- ncol(pvals.plot)
+  jpeg(name, width=7, height=(1.5*n.plots), units="in",res=100)
+  
+  old.par <- par(no.readonly = T)
+  par(mar=c(6.5,4.5,1,1.5), oma=c(0,1,1.5,1))
 
-old.par <- par(no.readonly = T)
-par(mar=c(2,4.5,2,1), oma=c(3.5,1,1,1))
-
-#Get layout
-m <- c(rep(seq(1,17,by=2),4),
-       seq(2,18,by=2))
-m <- sort(m)
-m <- matrix(m, nrow=9, ncol=5, byrow=T)
-layout(m)
-
-#Plot
-for(i in 1:ncol(pvals)){
-  trait <- colnames(pvals)[i]
-  man.df <- data.frame("BP"=snps$BP, "CHR"=snps$CHROM,"P"=pvals[,i])
-  threshold <- -log10(fdr_cutoff(man.df$P,alpha=0.10))
-  if(is.na(threshold)){
-    genomewideline <- FALSE
-  }else{
-    genomewideline <- threshold
+  #Get layout
+  m <- c(rep(seq(1,((n.plots*2)-1),by=2),4),
+         seq(2,(n.plots*2),by=2))
+  m <- sort(m)
+  m <- matrix(m, nrow=n.plots, ncol=5, byrow=T)
+  layout(m)
+  
+  #Plot
+  for(i in 1:n.plots){
+    trait <- colnames(pvals.plot)[i]
+    man.df <- data.frame("BP"=snps$BP, "CHR"=snps$CHROM,"P"=pvals.plot[,i])
+    threshold <- -log10(fdr_cutoff(man.df$P,alpha=0.10))
+    if(is.na(threshold)){
+      genomewideline <- FALSE
+    }else{
+      genomewideline <- threshold
+    }
+    if(i < n.plots){
+      xlab.man <- ""
+      xlab.qq <- ""
+    }else{
+      xlab.man <- "Scaffold"
+      xlab.qq <- expression(paste("Observed -log"[10], "(",italic("p"), ")", sep=""))
+    }
+    manhattan(man.df,main=trait,suggestiveline=FALSE,
+              genomewideline=genomewideline,
+              xlab = xlab.man,
+              ylim=c(0,-log10(min(pvals.plot))*1.1))
+    qq(man.df$P, main=trait, xlab=xlab.qq, ylab="")
+    mtext("Expected", side=2, line=3.5, cex=0.65)
+    mtext(expression(paste("-log"[10], "(",italic("p"),")")), side=2, line=2.25, cex=0.65)
   }
-  if(i < ncol(pvals)){
-    xlab.man <- ""
-    xlab.qq <- ""
-  }else{
-    xlab.man <- "Scaffold"
-    xlab.qq <- expression(atop("Expected",paste("-log[10],", italic("p"), sep="")))
-    par(xpd=NA)
-  }
-  manhattan(man.df,main=trait,suggestiveline=FALSE,
-            genomewideline=genomewideline,
-            xlab = xlab.man,
-            ylim=c(0,-log10(min(pvals))*1.1))
-  qq(man.df$P, main=trait, xlab=xlab.qq,
-     ylab = expression(atop("Observed",paste("-log[10],", italic("p"), sep=""))))
+  
+  par(old.par)
+  
+  dev.off()
+  
 }
 
-par(old.par)
+#Move 'main' to beginning of pvals
+pvals.order <- cbind("Across-pepper" = pvals$main, pvals)
+pvals.order$main <- NULL
 
-dev.off()
+#Separate into peppers with significant hits and those without
+thresholds <- apply(pvals.order, 2, fdr_cutoff, alpha = 0.10)
+pvals.sig <- pvals.order[,!is.na(thresholds)]
+pvals.insig <- pvals.order[,is.na(thresholds)]
+
+#Make plots
+
+draw_plots(pvals.sig, "plots/GWAS_sig.jpeg")
+draw_plots(pvals.insig, "plots/GWAS_insig.jpeg")
 
 
-
-
-
-pvals_pep <- pvals[,-ncol(pvals)]
-jpeg("plots/GWAS_results2.jpeg", width=7, height=5, units="in",res=100)
-
-old.par <- par(no.readonly = T)
-par(mar=c(2,4.5,2,1), oma=c(3.5,1,1,1))
-
-#Get layout
-m <- rbind(c(1,1,2,9,9,10),
-           c(3,3,4,11,11,12),
-           c(5,5,6,13,13,14),
-           c(7,7,8,15,15,16))
-layout(m)
-
-#Plot
-for(i in 1:ncol(pvals_pep)){
-  trait <- colnames(pvals_pep)[i]
-  man.df <- data.frame("BP"=snps$BP, "CHR"=snps$CHROM,"P"=pvals_pep[,i])
-  threshold <- -log10(fdr_cutoff(man.df$P,alpha=0.10))
-  if(is.na(threshold)){
-    genomewideline <- FALSE
-  }else{
-    genomewideline <- threshold
-  }
-  if(i < ncol(pvals_pep)){
-    xlab.man <- ""
-    xlab.qq <- ""
-  }else{
-    xlab.man <- "Scaffold"
-    xlab.qq <- expression(atop("Expected",paste("-log[10],", italic("p"), sep="")))
-    par(xpd=NA)
-  }
-  manhattan(man.df,main=trait,suggestiveline=FALSE,
-            genomewideline=genomewideline,
-            xlab = xlab.man,
-            ylim=c(0,-log10(min(pvals_pep))*1.1))
-  qq(man.df$P, main=trait, xlab=xlab.qq,
-     ylab = expression(atop("Observed",paste("-log[10],", italic("p"), sep=""))))
-}
-
-par(old.par)
-
-dev.off()
 
