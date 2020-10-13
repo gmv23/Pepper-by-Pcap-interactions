@@ -129,6 +129,7 @@ for(i in 1:n){
         col='red', lwd=1.5)
   mtext(new_field_names[i],side=3,line=-1.5, cex=0.7)
 }
+par(old.par)
 dev.off()
 
 #####################################          Finlay-Wilkinson Regression         ####################################
@@ -136,7 +137,9 @@ dev.off()
 pdf("plots/FW_regression.pdf")
 plot(0,type='n',
      xlim=range(phenos,na.rm=T),
-     ylim=range(phenos,na.rm=T))
+     ylim=range(phenos,na.rm=T),
+     xlab = "Mean pepper susceptibility",
+     ylab = "Isolate virulence")
 rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = 'white')
 for(i in 1:nrow(phenos)){
   abline(lm(unlist(phenos[i,]) ~ pep_means), 
@@ -148,4 +151,55 @@ dev.off()
 
 
 
+#####################################          Put it together         ####################################
+
+
+pdf("plots/interactions.pdf", width=7, height=4)
+old.par <- par(no.readonly = T)
+par(oma=c(4,4,4,4), mar=c(0,0,0,0))
+m1 <- matrix(c(1:105,107:110),nrow=10, ncol=11, byrow=T)
+m2 <- matrix(106, nrow=10,ncol=7)
+m <- cbind(m1,m2)
+layout(m)
+
+for(i in 1:n){
+  isolate_highlight <- isolates[i]
+  plot(0, type='n', 
+       xlim=c(1,p), 
+       ylim=range(phenos, na.rm=T),
+       xaxt='n', yaxt='n', ylab='', xlab='')
+  rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = field_col[i])
+  phenos.background <- phenos[-i,]
+  for(j in 1:(n-1)){
+    lines(1:p, 
+          phenos.background[j,], 
+          lwd=0.5,
+          col=adjustcolor("gray", alpha.f=0.6))
+  }
+  lines(1:p,
+        pep_means,
+        col='black', lwd=1, lty=2)
+  lines(1:p,
+        phenos[i,],
+        col='red', lwd=1.5)
+  mtext(new_field_names[i],side=3,line=-1.5, cex=0.7)
+}
+par(mar=c(4,4,4,4), oma=c(0,0,0,0))
+plot(0,type='n',
+     xlim=range(phenos,na.rm=T),
+     ylim=range(phenos,na.rm=T))
+rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = 'white')
+for(i in 1:nrow(phenos)){
+  abline(lm(unlist(phenos[i,]) ~ pep_means), 
+         col=field_col[i],
+         lwd=1.5)
+}
+abline(0,1,lwd=4,lty=2,col='red')
+
+
+dev.off()
+
+
+#Write new pops table
+write.csv(pops,"tables/pop_assignments.csv", quote=F, row.names = F)
 
