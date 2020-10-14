@@ -4,7 +4,6 @@ library(rrBLUP)
 library(GENESIS)
 library(GWASTools)
 library(SNPRelate)
-library(matrixcalc)
 
 #######################################          Load and clean data       ######################################
 
