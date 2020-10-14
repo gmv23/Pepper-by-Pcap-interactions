@@ -161,6 +161,9 @@ K <- A.mat(geno-1)
 rownames(K) <- scanAnnot.df$scanID
 colnames(K) <- scanAnnot.df$scanID
 
+#Save transformed phenos
+write.csv(phenos_transformed, "tables/transformed_blues.csv", quote=F, row.names=T)
+
 ###########################################        RUN GWAS        ########################################
 
 models <- rep(NA, ncol(phenos_transformed))
@@ -169,6 +172,14 @@ names(models) <- colnames(phenos_transformed)
 pvals <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
 colnames(pvals) <- colnames(phenos_transformed)
 pvals <- as.data.frame(pvals)
+
+betas <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
+colnames(betas) <- colnames(phenos_transformed)
+betas <- as.data.frame(betas)
+
+ses <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
+colnames(ses) <- colnames(phenos_transformed)
+ses <- as.data.frame(ses)
 
 for(i in 1:ncol(phenos_transformed)){
   trait <- colnames(phenos_transformed)[i]
@@ -179,6 +190,8 @@ for(i in 1:ncol(phenos_transformed)){
   genoIterator <- GenotypeBlockIterator(genoData,snpBlock = 10000)
   assoc <- assocTestSingle(gdsobj=genoIterator, null.model=null_model)
   pvals[,i] <- assoc$Score.pval
+  betas[,i] <- assoc$Score
+  ses[,i] <- assoc$Score.SE
 }
 
 close(geno.gds)
@@ -259,6 +272,3 @@ pvals.insig <- pvals.order[,is.na(thresholds)]
 
 draw_plots(pvals.sig, "plots/GWAS_sig.jpeg")
 draw_plots(pvals.insig, "plots/GWAS_insig.jpeg")
-
-
-
