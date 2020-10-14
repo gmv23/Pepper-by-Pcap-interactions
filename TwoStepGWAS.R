@@ -3,9 +3,10 @@ library(rrBLUP)
 library(GENESIS)
 library(GWASTools)
 library(SNPRelate)
+library(matrixcalc)
 
 #################################   Load and clean data   ################################
-
+set.seed(385832)
 #Reformat VCF file as GDS file
 snpgdsVCF2GDS(vcf.fn="data/capsici_pepper_subset.recode.vcf", out.fn="capsici_pepper_subset.gds")
 
@@ -82,7 +83,7 @@ pvalues <- matrix(NA, nrow=ncol(geno), ncol=9)
 
 n_permutations <- 1000
 ###########################   Run Archimedes   ##########################
-
+print("Starting Archimedes")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "Archimedes",
                            family = gaussian)
@@ -146,7 +147,7 @@ permute_mins <- apply(scrambled_pvals,1,min)
 pval_thresholds[1,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, .01))
 
 ###########################   Run Aristotle   ##########################
-
+print("Starting Aristotle")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "Aristotle",
                            family = gaussian)
@@ -212,7 +213,7 @@ pval_thresholds[2,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, 
 
 
 ###########################   Run EJ   ##########################
-
+print("Starting Early Jalapeno")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "EarlyJalapeno",
                            family = gaussian)
@@ -261,13 +262,20 @@ pvalues[,3] <- assoc$Score.pval
 scrambled_pvals <- matrix(NA, nrow=n_permutations, ncol=nrow(snps))
 for(i in 1:n_permutations){
   scanAnnot.scramble.df <- scanAnnot.df
-  scramble_order <- sample(1:nrow(scanAnnot.scramble.df), nrow(scanAnnot.scramble.df), replace=F)
+  find_order <- F
+  while(find_order == F){
+    scramble_order <- sample(1:nrow(scanAnnot.scramble.df), nrow(scanAnnot.scramble.df), replace=F)
+    K_scramble <- K[scramble_order, scramble_order]
+    if(is.positive.semi.definite(K_scramble)){
+      find_order <- T
+    }
+  }
   scanAnnot.scramble.df[,2:ncol(scanAnnot.scramble.df)] <- scanAnnot.scramble.df[scramble_order,2:ncol(scanAnnot.scramble.df)]
-  K_scramble <- K[scramble_order, scramble_order]
   scanAnnot.scramble <- ScanAnnotationDataFrame(scanAnnot.scramble.df)
   genoScramble <- GenotypeData(geno.gds, scanAnnot = scanAnnot.scramble)
   null_scramble <- fitNullModel(scanAnnot.scramble, outcome = "EarlyJalapeno", cov.mat = K_scramble,
                                 family = gaussian)
+  write.csv(K_scramble, "K_scramble.csv", row.names=T, quote=F)
   genoIterator <- GenotypeBlockIterator(genoScramble,snpBlock = 10000)
   assocSCRAMBLE <- assocTestSingle(gdsobj=genoIterator, null.model=null_scramble)
   scrambled_pvals[i,] <- assocSCRAMBLE$Score.pval
@@ -277,7 +285,7 @@ permute_mins <- apply(scrambled_pvals,1,min)
 pval_thresholds[3,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, .01))
 
 ###########################   Run NMRILN   ##########################
-
+print("Starting NMRILN")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "NMRIL.N",
                            family = gaussian)
@@ -342,7 +350,7 @@ permute_mins <- apply(scrambled_pvals,1,min)
 pval_thresholds[4,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, .01))
 
 ###########################   Run Paladin   ##########################
-
+print("Starting Paladin")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "Paladin",
                            family = gaussian)
@@ -391,9 +399,15 @@ pvalues[,5] <- assoc$Score.pval
 scrambled_pvals <- matrix(NA, nrow=n_permutations, ncol=nrow(snps))
 for(i in 1:n_permutations){
   scanAnnot.scramble.df <- scanAnnot.df
-  scramble_order <- sample(1:nrow(scanAnnot.scramble.df), nrow(scanAnnot.scramble.df), replace=F)
+  find_order <- F
+  while(find_order == F){
+    scramble_order <- sample(1:nrow(scanAnnot.scramble.df), nrow(scanAnnot.scramble.df), replace=F)
+    K_scramble <- K[scramble_order, scramble_order]
+    if(is.positive.semi.definite(K_scramble)){
+      find_order <- T
+    }
+  }
   scanAnnot.scramble.df[,2:ncol(scanAnnot.scramble.df)] <- scanAnnot.scramble.df[scramble_order,2:ncol(scanAnnot.scramble.df)]
-  K_scramble <- K[scramble_order, scramble_order]
   scanAnnot.scramble <- ScanAnnotationDataFrame(scanAnnot.scramble.df)
   genoScramble <- GenotypeData(geno.gds, scanAnnot = scanAnnot.scramble)
   null_scramble <- fitNullModel(scanAnnot.scramble, outcome = "Paladin", cov.mat=K_scramble,
@@ -408,7 +422,7 @@ pval_thresholds[5,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, 
 
 
 ###########################   Run Perennial   ##########################
-
+print("Starting Pernennial")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "Perennial",
                            family = gaussian)
@@ -474,7 +488,7 @@ pval_thresholds[6,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, 
 
 
 ###########################   Run Red Knight   ##########################
-
+print("Starting RK")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "RedKnight",
                            family = gaussian)
@@ -539,7 +553,7 @@ permute_mins <- apply(scrambled_pvals,1,min)
 pval_thresholds[7,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, .01))
 
 ###########################   Run Revolution  ##########################
-
+print("Starting Revolution")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "Revolution",
                            family = gaussian)
@@ -605,7 +619,7 @@ pval_thresholds[8,2:3] <- c(quantile(permute_mins, .05), quantile(permute_mins, 
 
 
 ###########################   Run Vanguard  ##########################
-
+print("Starting Vanguard")
 #Model Testing
 mod_simple <- fitNullModel(scanAnnot, outcome = "Vanguard",
                            family = gaussian)
