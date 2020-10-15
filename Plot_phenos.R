@@ -2,6 +2,7 @@ setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pheno/")
 library(vioplot)
 library(RColorBrewer)
 library(stringr)
+library(grid)
 #####################################          Read data          ####################################
 
 #Read virulence BLUEs
@@ -150,7 +151,13 @@ field_col <- col_choices[match(field_no, 1:23)]
 
 pdf("plots/interaction_matrix.pdf")
 old.par <- par(no.readonly = T)
-par(mfrow=c(10,11), oma=c(6,4,1.5,1.5), mar=c(0,0,0,0))
+m <- matrix(1:110,nrow=10,ncol=11,byrow=T)
+m[10,7:11] <- 107
+m[10,7] <- 106
+m[10,11] <- 108
+m <- cbind(m,109,110)
+layout(m)
+par(oma=c(6,4,1.5,1.5), mar=c(0,0,0,0))
 for(i in 1:n){
   isolate_highlight <- isolates[i]
   
@@ -168,8 +175,8 @@ for(i in 1:n){
         col='red', lwd=1.5)
   
   #Write isolate name and field
-  mtext(new_field_names[i],side=3,line=-2, cex=0.7)
-  mtext(isolate_highlight,side=3,line=-1, cex=0.7)
+#  mtext(new_field_names[i],side=3,line=-2, cex=0.7)
+  mtext(isolate_highlight,side=3,line=-1.25, cex=0.55)
   
   #Draw axis tick marks
   if(i %in% seq(1,100,by=11)){
@@ -186,7 +193,33 @@ for(i in 1:n){
   if(i == 105){
     mtext("Pepper",side=1,line=3, cex=1)
   }
+  
+  #Get coordinates to draw dashed line to pepper 'legend'
+  if(i == 97){
+    y.end <- grconvertY(0, "npc", "ndc")
+    x1.end <- grconvertX(0, "npc", "ndc")
+    x2.end <- grconvertX(1, "npc", "ndc")
+  }
 }
+
+#Add tick mark showing order of peppers
+plot(0,type='n',bty='n',xaxt='n',yaxt='n',xlab='',ylab='', xlim=c(1,p),ylim=c(1,10))
+plot(0,type='n',bty='n',xaxt='n',yaxt='n',xlab='',ylab='', xlim=c(1,p),ylim=c(1,10))
+axis(side = 1, at = 1:p, labels=colnames(phenos), las=2)
+x1.start <- grconvertX(0, "npc", "ndc")
+x2.start <- grconvertX(1, "npc", "ndc")
+y.start <- grconvertY(0, "npc", "ndc")
+plot(0,type='n',bty='n',xaxt='n',yaxt='n',xlab='',ylab='', xlim=c(1,p),ylim=c(1,10))
+
+#Add legend
+par(xpd=NA)
+plot(0,type='n',bty='n',xaxt='n',yaxt='n',xlab='',ylab='', xlim=c(0,10),ylim=c(0,10))
+legend(0,8,fill=col_choices, legend=levels(pops$Field), bty='n', cex=1.25)
+
+pushViewport(viewport())
+grid.lines(x=c(x1.start, x1.end), y=c(y.start, y.end), gp=gpar(lty=2))
+grid.lines(x=c(x2.start, x2.end), y=c(y.start, y.end), gp=gpar(lty=2))
+
 par(old.par)
 dev.off()
 
