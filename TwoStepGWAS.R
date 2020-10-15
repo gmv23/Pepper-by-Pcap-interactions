@@ -172,14 +172,6 @@ pvals <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
 colnames(pvals) <- colnames(phenos_transformed)
 pvals <- as.data.frame(pvals)
 
-betas <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
-colnames(betas) <- colnames(phenos_transformed)
-betas <- as.data.frame(betas)
-
-ses <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
-colnames(ses) <- colnames(phenos_transformed)
-ses <- as.data.frame(ses)
-
 for(i in 1:ncol(phenos_transformed)){
   trait <- colnames(phenos_transformed)[i]
   best_model <- test_models(scanAnnot=scanAnnot, outcome=trait, plot=T)
@@ -189,8 +181,6 @@ for(i in 1:ncol(phenos_transformed)){
   genoIterator <- GenotypeBlockIterator(genoData,snpBlock = 10000)
   assoc <- assocTestSingle(gdsobj=genoIterator, null.model=null_model)
   pvals[,i] <- assoc$Score.pval
-  betas[,i] <- assoc$Score
-  ses[,i] <- assoc$Score.SE
 }
 
 close(geno.gds)
@@ -272,4 +262,3 @@ pvals.insig <- pvals.order[,is.na(thresholds)]
 draw_plots(pvals.sig, "plots/GWAS_sig.jpeg")
 draw_plots(pvals.insig, "plots/GWAS_insig.jpeg")
 
-#test
