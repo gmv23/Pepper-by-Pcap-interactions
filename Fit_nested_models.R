@@ -37,8 +37,12 @@ for(i in 1:length(peppers)){
 	pep.sub$Isolate <- droplevels(pep.sub$Isolate)
 
 	#Fit model
-	mod <- asreml(fixed = audpc ~ 1 + Rep + at(New, 1):Isolate,
-			 random = ~ at(New, 2):Isolate + Rep:Block,
+#	mod <- asreml(fixed = audpc ~ 1 + Rep + at(New, 1):Isolate,
+#			 random = ~ at(New, 2):Isolate + Rep:Block,
+#			 residual = ~ idv(units),
+#			 data = pep.sub, na.action = na.method(x="include",y="include"), maxit=500)
+	mod <- asreml(fixed = audpc ~ 1 + Rep,
+			 random = ~ Isolate + Rep:Block,
 			 residual = ~ idv(units),
 			 data = pep.sub, na.action = na.method(x="include",y="include"), maxit=500)
 
