@@ -24,11 +24,11 @@ pep.bal <- pep[!pep$Pepper %in% c("Archimedes", "Revolution", "Vanguard"),]
 pep.bal$Pepper <- droplevels(pep.bal$Pepper)
 #################################  Fit  models   #############################
 
-mod <- asreml(fixed = audpc ~ Isolate + Pepper + Isolate:Pepper + Rep,
+mod <- asreml(fixed = audpc ~ 1 + Isolate + Pepper + Isolate:Pepper + Rep,
 		   random = ~ Rep:Block/Tray,
 		   data = pep, na.action=na.method(x="include",y="include"))
 
-mod.bal <- asreml(fixed = audpc ~ Isolate + Pepper + Isolate:Pepper + Rep,
+mod.bal <- asreml(fixed = audpc ~ 1 + Isolate + Pepper + Isolate:Pepper + Rep,
 		   random = ~ Rep:Block/Tray,
 		   data = pep.bal, na.action=na.method(x="include",y="include"))
 
@@ -48,6 +48,12 @@ pep.main.blues <- pep.main.blues[!pep.main.blues$Isolate %in% c("CHECK1", "CHECK
 pep.full.blues$main <- pep.main.blues$predicted.value[match(pep.full.blues$Isolate, pep.main.blues$Isolate)]
 
 write.csv(pep.full.blues, "tables/virulence_blues.csv", quote=F, row.names=F)
+
+#Get LS means for peppers as well
+pepper.means <- predict(mod,
+		classify = "Pepper",
+		present = c("Isolate", "Pepper"))$pvals
+write.csv(pepper.means, "tables/pepper_blues.csv", quote=F, row.names=F)
 
 #################################  Get model terms and p-values  ################################
 
