@@ -41,7 +41,7 @@ pep.full.blues <- pep.full.predict$pvals
 pep.full.blues <- pep.full.blues[!pep.full.blues$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"),]
 pep.full.blues <- dcast(Isolate~Pepper, value.var="predicted.value", data=pep.full.blues)
 
-pep.main.predict <- predict(mod, classify="Isolate")
+pep.main.predict <- predict(mod, classify="Isolate", present = c("Isolate", "Pepper"))
 pep.main.blues <- pep.main.predict$pvals
 pep.main.blues <- pep.main.blues[!pep.main.blues$Isolate %in% c("CHECK1", "CHECK2", "CHECK3"),]
 
