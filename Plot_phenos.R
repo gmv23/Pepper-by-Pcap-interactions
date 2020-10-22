@@ -173,6 +173,9 @@ for(i in 1:n){
   lines(1:p,
         phenos[i,],
         col='red', lwd=1.5)
+  points(1:p,
+        phenos[i,],
+        col='red', lwd=1)
   
   #Write isolate name and field
 #  mtext(new_field_names[i],side=3,line=-2, cex=0.7)
@@ -225,24 +228,49 @@ dev.off()
 
 #####################################          Finlay-Wilkinson Regression         ####################################
 
-pdf("plots/FW_regression.pdf")
+#Get matrix of regression slopes, intercepts, and MSEs
+fw_params <- matrix(NA, nrow=n, ncol=3)
+colnames(fw_params) <- c("Intercept", "Slope", "MSE")
+fw_params <- as.data.frame(fw_params)
+rownames(fw_params) <- rownames(phenos)
+
+for(i in 1:n){
+  fw.lm <- lm(unlist(phenos[i,])~pep_means)
+  fw_params[i,1:2] <- fw.lm$coefficients
+  fw_params[i,3] <- anova(fw.lm)$'Mean Sq'[2]
+  print(paste(rownames(phenos)[i],summary(fw.lm)$r.squared, fw_params[i,3]))
+}
+
+#function to turn usr plot coordinates into relative plot coordinates to plot pane letters
+get_coords <- function(x=-0.1,y=1.075){
+  x.coord <- grconvertX(x, "npc", "user")
+  y.coord <- grconvertY(y, "npc", "user")
+  return(c(x.coord, y.coord))
+}
+
+pdf("plots/FW_regression.pdf", width=7, height=4)
+
+old.par <- par(no.readonly = T)
+par(mar=c(5,4,3,1))
+m <- rbind(c(1,1,1,1,2,2,2,2,3))
+layout(m)
 
 #Draw empty plot
 plot(0,type='n',
      xlim=range(phenos,na.rm=T),
      ylim=range(phenos,na.rm=T),
-     xlab = "Pepper susceptibility index",
-     ylab = "Isolate virulence")
+     xlab = "Average Pepper AUDPC",
+     ylab = "Individual Isolate AUDPC")
 
 #Caclulate regression intercept and slope for all isolates and plot
-for(i in 1:nrow(phenos)){
+for(i in 1:n){
   isolate <- rownames(phenos)[i]
-  fw.lm <- lm(unlist(phenos[i,]) ~ pep_means)
-  abline(fw.lm, 
+  abline(fw_params$Intercept[i], fw_params$Slope[i], 
          col='gray',
          lwd=1)
   #Hard code in arrows to label four isolates: 
   if(isolate == "STK_5A"){
+    fw.lm <- lm(unlist(phenos[i,])~pep_means)
     x.end <- -5
     y.end <- predict(fw.lm, list("pep_means"=x.end))
     x.start <- 0
@@ -251,6 +279,7 @@ for(i in 1:nrow(phenos)){
     text(x.start+2,y.start+2,isolate)
   }
   if(isolate == "LEWT3_2A"){
+    fw.lm <- lm(unlist(phenos[i,])~pep_means)
     x.end <- 8
     y.end <- predict(fw.lm, list("pep_means"=x.end))
     x.start <- 15
@@ -259,6 +288,7 @@ for(i in 1:nrow(phenos)){
     text(x.start+2,y.start+2,isolate)
   }
   if(isolate == "RCZ_1B"){
+    fw.lm <- lm(unlist(phenos[i,])~pep_means)
     x.end <- -9
     y.end <- predict(fw.lm, list("pep_means"=x.end))
     x.start <- x.end+5
@@ -267,6 +297,7 @@ for(i in 1:nrow(phenos)){
     text(x.start+2,y.start+2,isolate)
   }
   if(isolate == "4E_5A"){
+    fw.lm <- lm(unlist(phenos[i,])~pep_means)
     x.end <- 0
     y.end <- predict(fw.lm, list("pep_means"=x.end))
     x.start <- x.end-1
@@ -276,6 +307,91 @@ for(i in 1:nrow(phenos)){
   }
 }
 abline(0,1,lwd=3,lty=2,col='red')
+par(xpd=NA)
+text(get_coords()[1], get_coords()[2], "A", cex=1.5)
+
+#Plot 2: Intercept vs Slope, colored by MSE
+#Turn MSES into color values ranging from blue to red
+col_func <- colorRampPalette(c("blue", "red"))
+col_func(100)
+mses <- fw_params$MSE
+mses_transform <- round(100/(max(mses)-min(mses)) * (mses-max(mses)) + 100)
+mses_transform[mses_transform==0] <- 1
+plot(fw_params$Intercept,fw_params$Slope,
+     bg=col_func(100)[mses_transform],col='black',
+     pch=21,cex=2,
+     xlab = "Regression Intercept",
+     ylab = "Regression Slope")
+
+#Hard code in arrows to label five isolates: 
+
+#14_55
+isolate_vals <- fw_params["14_55",]
+isolate_col <- col_func(100)[mses_transform[which(rownames(fw_params)=="14_55")]]
+points(isolate_vals[1],isolate_vals[2],bg=isolate_col,col='black',pch=21,cex=2)
+x.end <- unlist(isolate_vals)[1] + 1
+y.end <- unlist(isolate_vals)[2] +.025
+x.start <- 30
+y.start <- 1.5
+arrows(x.start, y.start, x.end, y.end, length = 0.15)
+text(x.start+5,y.start+.08,"14_55")
+
+#13EH04A
+isolate_vals <- fw_params["13EH04A",]
+isolate_col <- col_func(100)[mses_transform[which(rownames(fw_params)=="14_55")]]
+points(isolate_vals[1],isolate_vals[2],bg=isolate_col,col='black',pch=21,cex=2)
+x.end <- unlist(isolate_vals)[1] + 1
+y.end <- unlist(isolate_vals)[2]
+x.start <- 12
+y.start <- 1.75
+arrows(x.start, y.start, x.end, y.end, length = 0.15)
+text(x.start+5,y.start+.08,"13EH04A")
+
+#17EH15_2B
+isolate_vals <- fw_params["17EH15_2B",]
+isolate_col <- col_func(100)[mses_transform[which(rownames(fw_params)=="14_55")]]
+points(isolate_vals[1],isolate_vals[2],bg=isolate_col,col='black',pch=21,cex=2)
+x.end <- unlist(isolate_vals)[1] + 1
+y.end <- unlist(isolate_vals)[2] + .03
+x.start <- 20
+y.start <- 1.6
+arrows(x.start, y.start, x.end, y.end, length = 0.15)
+text(x.start+5,y.start+.08,"17EH15_2B")
+
+#17EH68A
+isolate_vals <- fw_params["17EH68A",]
+isolate_col <- col_func(100)[mses_transform[which(rownames(fw_params)=="14_55")]]
+points(isolate_vals[1],isolate_vals[2],bg=isolate_col,col='black',pch=21,cex=2)
+x.end <- unlist(isolate_vals)[1] +1
+y.end <- unlist(isolate_vals)[2] - .015
+x.start <- 30
+y.start <- 1.1
+arrows(x.start, y.start, x.end, y.end, length = 0.15)
+text(x.start+10,y.start+.02,"17EH68A")
+
+
+#3W_8A
+isolate_vals <- fw_params["3W_8A",]
+isolate_col <- col_func(100)[mses_transform[which(rownames(fw_params)=="14_55")]]
+points(isolate_vals[1],isolate_vals[2],bg=isolate_col,col='black',pch=21,cex=2)
+x.end <- unlist(isolate_vals)[1]
+y.end <- unlist(isolate_vals)[2] - 0.03
+x.start <- 10
+y.start <- 0.75
+arrows(x.start, y.start, x.end, y.end, length = 0.15)
+text(x.start+5,y.start-.08,"3W_8A")
+text(get_coords()[1], get_coords()[2], "B", cex=1.5)
+
+#Plot 3: MSE legend
+plot(0,type='n',xlim=c(0,10),ylim=c(0,10),xaxt='n',yaxt='n',xlab='',ylab='',bty='n')
+par(xpd=NA)
+legend(-50,9,
+       fill=col_func(100)[seq(1,100,length.out=15)],
+       legend = c(round(min(mses)), rep("",13), round(max(mses))),
+       title="MSE",
+       cex=1.25, bty='n', y.intersp=0.75)
+
+par(old.par)
 dev.off()
 
 

@@ -38,6 +38,12 @@ pep <- pep[pep$Isolate != "H2O",]
 pep$Isolate <- droplevels(pep$Isolate)
 pep$Isolate.CC <- NULL
 
+#How many observations excluding checks?
+total_obs <- nrow(pep); total_obs
+exp_obs <- sum(!pep$Isolate %in% c("CHECK1", "CHECK2", "CHECK3")); exp_obs
+total_obs_all_time_points <- total_obs*6; total_obs_all_time_points
+exp_obs_all_time_points <- exp_obs*6; exp_obs_all_time_points
+
 #Turn phenotype into cause disease or not cause disease
 #Get sum of number reps an isolate caused any disease on a given pepper
 disease_reps <- aggregate(audpc~Isolate*Pepper,data=pep, FUN=function(x) sum(x>0)/length(x))
@@ -53,20 +59,24 @@ as.character(non_pathogenic_isolates)
 pep.filt <- pep[!pep$Isolate %in% non_pathogenic_isolates,]
 disease_reps <- disease_reps[!disease_reps$Isolate %in% non_pathogenic_isolates,]
 
-#What percentage of isolates consistently cause disease on each pepper?
+#What percentage of isolates consistently cause disease (ie in both reps) on each pepper?
 percent_virulent <- apply(disease_reps[,-1],2,function(x) sum(x==1, na.rm=T)/sum(!is.na(x)))
+number_virulent <- apply(disease_reps[,-1],2,function(x) sum(x==1, na.rm=T))
 
 #Plot percent virulent on each pepper
 pdf("plots/percent_virulent_per_pepper.pdf")
 old.par <- par(no.readonly = T)
 par(mar=c(7,4,4,2))
 percent_virulent <- sort(percent_virulent)
-barplot(percent_virulent*100,las=2,ylab="% Isolates Pathogenic",ylim=c(0,100))
+number_virulent <- sort(number_virulent)
+barplot.data <- barplot(percent_virulent*100, plot=F)
+barplot(percent_virulent*100,las=2,ylab="Isolates Pathogenic in All Reps (%)",ylim=c(0,100))
+text(barplot.data, percent_virulent*100 + 5, labels=number_virulent)
+abline(h=20, lty=2, col = 'black', lwd=2)
 par(old.par)
 dev.off()
 
 #Lets get rid of peppers where fewer than 20% of the isolates can cause disease in both reps
-percent_virulent_loose <- apply(disease_reps[,-1],2,function(x) sum(x>0, na.rm=T)/sum(!is.na(x)))
 cutoff <- 0.20
 informative_peppers <- names(which(percent_virulent > cutoff))
 length(informative_peppers)

@@ -100,13 +100,13 @@ test_models <- function(scanAnnot, outcome, plot=T){
   
   model_names <- names(models)
   model_AICs <- sapply(models, function(x) x$AIC)
-  
+  n.models <- length(model_names)
   if(plot){
-    plot(1:10, model_AICs,
+    plot(1:n.models, model_AICs,
          ylab = "AIC", xlab = "", xaxt="n", col='white', 
          main = outcome)
-    axis(1, at=1:10, las="2", labels = model_names)
-    text(1:10, model_AICs, labels=round(model_AICs,2))
+    axis(1, at=1:n.models, las="2", labels = model_names)
+    text(1:n.models, model_AICs, labels=round(model_AICs,2))
   }
   
   model_choose <- which(model_AICs == min(model_AICs))

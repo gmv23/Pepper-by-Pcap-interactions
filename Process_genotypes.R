@@ -24,12 +24,12 @@ geno[geno==-1] <- NA
 #There are two isolates that were inoculated where their clones were included in the clone-corrected data set
 #Therefore the genotype for 17PZ18A needs to be relabeled 17PZ21A
 #And the genotype for 14_55C relabled 14_55
-#They are clones so the genotypes are >95% identical
+#They are clones so the genotypes are essentially identical
 indvs[indvs=="17PZ18A"] <- "17PZ21A"
 indvs[indvs=="14_55C"] <- "14_55"
 rownames(geno) <- indvs
 
-#Subset geno for those that were phenotyped
+#Subset geno for those that were phenotyped and pathogenic
 geno <- geno[indvs %in% pep$Isolate,]
 indvs <- indvs[indvs %in% pep$Isolate]
 
