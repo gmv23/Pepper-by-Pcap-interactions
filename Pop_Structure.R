@@ -6,15 +6,14 @@ library(grid)
 #####################################          Read data          ####################################
 
 #Read virulence BLUEs
-phenos_full <- read.csv("../gwas/data/virulence_blues.csv")
-rownames(phenos_full) <- phenos_full$Isolate
-phenos_full$Isolate <- NULL
-#Get rid of 'main' phenotype
-phenos <- phenos_full
-phenos$main <- NULL
+phenos <- read.csv("../gwas/data/virulence_blues.csv")
+rownames(phenos) <- phenos$Isolate
+phenos$Isolate <- NULL
 
 #Read assignment of isolates to fields/subpopulations
-pops <- read.csv("../pheno/tables/pop_assignments.csv")
+sites <- read.csv("../../../isolate_collection/paper/phenotypes_and_clones/isolate_plotting_metadata.csv")
+sites$SampleSZ <- as.character(sites$SampleSZ)
+sites$SampleSZ[sites$SampleSZ =="14_55C"] <- "14_55"
 
 #Read geno
 geno <- read.table("../geno/data/capsici_pepper_subset.012")
@@ -25,8 +24,18 @@ indvs <- read.table("../geno/data/capsici_pepper_subset.012.indv")
 indvs <- unlist(indvs$V1)
 rownames(geno) <- indvs
 
+#Read finlay-wilkinson regression parameters
+fw <- read.csv("../pheno/tables/fw_params.csv")
+rownames(fw) <- fw$X
+fw$X <- NULL
+fw <- fw[match(rownames(geno), rownames(fw)),]
+
 #Put phenos in same order as genos
 phenos <- phenos[match(rownames(geno), rownames(phenos)),]
+
+#Get rid of 'main' phenotype
+main_effects <- phenos$main
+phenos$main <- NULL
 
 ###################              geno PCA vs PCA-biplot       ######################################
 
@@ -55,16 +64,95 @@ for (i in 2:15){
 plot(1:15, wss, type="b", xlab="Number of Clusters",
      ylab="Within groups sum of squares")
 
+#Put screeplot and K-means cluster plot together in one supplemental plot
+pdf("plots/geno_clustering.pdf", width=7, height=4)
+get_coords <- function(x=-0.15,y=1.15){
+  x.coord <- grconvertX(x, "npc", "user")
+  y.coord <- grconvertY(y, "npc", "user")
+  return(c(x.coord, y.coord))
+}
+old.par <- par(no.readonly = T)
+par(mfrow=c(1,2), xpd=NA)
+screeplot(geno.pc, type="lines", main="")
+mtext("Principal component", side = 1, line=3)
+text(get_coords()[1], get_coords()[2], "A", cex=1.5)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares")
+text(get_coords()[1], get_coords()[2], "B", cex=1.5)
+par(old.par)
+dev.off()
+
 #Now identify clusters
 n.clusters <- 5
 pcs.km <- kmeans(pcs.g, n.clusters, nstart=20, iter.max=1000)
 color_choices <- brewer.pal(n.clusters, "Set1")
 color_assignments <- color_choices[match(pcs.km$cluster, 1:n.clusters)]
 
+#How do clusters relate to field sites
+sites$cluster <- clust[match(sites$SampleSZ, names(clust))]
+sites <- sites[!is.na(sites$clust),]
+sites <- sites[order(sites$clust),]
+table(sites$Field, sites$cluster)
+
 #Impute missing data in phenotypes and calculate phenotype PCs
 pheno.imp <- apply(phenos, 2, impute)
 pheno.pc <- prcomp(pheno.imp, center = T, scale=T)
 pcs.p <- pheno.pc$x[,1:4]
+
+#Save these PCs
+write.csv(pcs.p, "tables/phenotypic_pcs.csv", quote=F, row.names = T)
+
+#Plot loadings
+pdf("plots/pepper_loadings.pdf", height=7, width=4)
+old.par <- par(no.readonly=T)
+par(mfrow=c(4,1), mar=c(2,5,2,2), oma=c(6,0,0,0), xpd=NA)
+for(i in 1:4){
+  barplot(pheno.pc$rotation[,i],
+          names.arg=rep("",nrow(pheno.pc$rotation)),
+          ylab="Loading")
+  text(get_coords()[1], get_coords()[2], LETTERS[i], cex=1.5)
+  if(i == 4){
+    barplot.data <-  barplot(pheno.pc$rotation[,i], plot=F)
+    axis(1, at=barplot.data, labels=rownames(pheno.pc$rotation),las=2)
+  }
+}
+par(old.par)
+dev.off()
+
+#correlations of genotypic and phenotypic pcs
+cors <- matrix(NA,nrow=4,ncol=4)
+sigs <- matrix(F, nrow=4, ncol=4)
+for(i in 1:4){
+  for(j in 1:4){
+    pcs.cor <- cor.test(pcs.g[,i],pcs.p[,j])
+    cors[i,j] <- pcs.cor$estimate
+    sigs[i,j] <- pcs.cor$p.value
+  }
+}
+cors
+which(sigs < .05/16, arr.ind = T)
+
+#ANOVA phenotypic PCs by genetic cluster
+anova(lm(pcs.p[,1] ~ clust))$'Pr(>F)'[1]*4
+anova(lm(pcs.p[,2] ~ clust))$'Pr(>F)'[1]*4
+anova(lm(pcs.p[,3] ~ clust))$'Pr(>F)'[1]*4
+anova(lm(pcs.p[,4] ~ clust))$'Pr(>F)'[1]*4
+
+pc3.lm <- lm(pcs.p[,3] ~ clust)
+summary(pc3.lm)
+
+pc4.lm <- lm(pcs.p[,4] ~ clust)
+summary(pc4.lm)
+
+#What are the phenotypic PCS?
+#PC 1 relates to general virulence
+cor.test(pcs.p[,1], main_effects)
+
+#PC 2 relates to FW slope
+cor.test(pcs.p[,2], fw$Slope)
+
+#PC 3 harder to define
+pheno.pc$rotation
 
 #function to turn usr plot coordinates into relative plot coordinates to plot pane letters
 get_coords <- function(x=-0.1,y=1.1){

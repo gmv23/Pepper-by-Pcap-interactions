@@ -22,6 +22,15 @@ pops$SampleSZ <- as.character(pops$SampleSZ)
 pops$SampleSZ[pops$SampleSZ=="14_55C"] <- "14_55" #Rename
 pops$SampleSZ <- as.factor(pops$SampleSZ)
 
+#Read average pepper LS means
+pepper_means <- read.csv("data/pepper_blues.csv")
+pepper_means$Pepper <- as.character(pepper_means$Pepper)
+pepper_means$Pepper[pepper_means$Pepper == "RedKnight"] <- "Red\nKnight"
+pepper_means$Pepper[pepper_means$Pepper == "EarlyJalapeno"] <- "Early\nJalapeno"
+
+rownames(phenos_full) <- phenos_full$Isolate
+phenos_full$Isolate <- NULL
+
 #####################################          Violin plots          ####################################
 
 pdf("plots/violinplot.pdf", width=7,height=5)
@@ -107,7 +116,8 @@ dev.off()
 #####################################          Interaction plots          ####################################
 
 #Sort peppers by mean virulence
-pep_means <- apply(phenos,2,mean, na.rm=T)
+pep_means <- unlist(pepper_means$predicted.value)
+names(pep_means) <- pepper_means$Pepper
 pep_means <- sort(pep_means, decreasing=F)
 pep_order <- names(pep_means)
 phenos <- phenos[,pep_order]
@@ -233,6 +243,9 @@ fw_params <- matrix(NA, nrow=n, ncol=3)
 colnames(fw_params) <- c("Intercept", "Slope", "MSE")
 fw_params <- as.data.frame(fw_params)
 rownames(fw_params) <- rownames(phenos)
+
+#Save regressoin parameters
+write.csv(fw_params,"tables/fw_params.csv",quote=F,row.names = T)
 
 for(i in 1:n){
   fw.lm <- lm(unlist(phenos[i,])~pep_means)
