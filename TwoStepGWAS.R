@@ -208,7 +208,7 @@ p.summary <- data.frame("Pepper" = colnames(pvals),
                         "Allelic_effect" = NA)
 
 for(i in 1:nrow(p.summary)){
-  mod <- lm(phenos[,i] ~ as.integer(as.character(sig_geno)))
+  mod <- lm(phenos_transformed[,i] ~ as.integer(as.character(sig_geno)))
   p.summary$R2[i] <- summary(mod)$r.squared
   effect <- mod$coefficients[2]
   p.summary$Allelic_effect[i] <- effect

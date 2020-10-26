@@ -31,13 +31,6 @@ snps <- pvals[,c("CHROM","BP","MARKER")]
 pvals <- pvals[,!colnames(pvals) %in% c("CHROM","BP","MARKER")]
 colnames(pvals)[colnames(pvals) == "main"] <- "Across-pepper"
 
-#Read reference genome gene annotations and additional effector annotations
-annotations <- read.delim("../../../isolate_collection/analysis/genome/annotations.txt", stringsAsFactors = F)
-effectors <- read.table("../effectors/data/Pc_effectors_blastout.txt")
-colnames(effectors) <- c("qseqid", "sseqid", "pident", "length",
-                         "mismatch", "gapopen", "qstart", "qend",
-                         "sstart", "send", "evalue", "bitscore")
-
 ###########################################        Plot manhattan and qq plots        ########################################
 
 #Function to get FDR threshold
@@ -160,7 +153,7 @@ dev.off()
 peak_bp <- snps[sig_snp,"BP"]
 
 #Show peak +/- this distance, and for this trait
-distance <- 100000
+distance <- 400000
 trait <- "RedKnight"
 
 filter <- snps$CHROM == 39 & snps$BP > (peak_bp-distance) & snps$BP <= (peak_bp+distance)
@@ -185,19 +178,7 @@ for(i in 1:n){
 #rescale r2 distribution to -log10 distribution for plotting
 lds.rescale <- (max(logp)-min(logp))/(max(lds)-min(lds)) * (lds-max(lds)) + max(logp)
 
-#Now subset gene info
-anno.sub <- annotations[annotations$chrom=="PHYCAscaffold_39" & 
-                          apply(annotations[,c("start","end")],1,min) > (peak_bp-distance) &
-                          apply(annotations[,c("start","end")],1,min) < (peak_bp+distance),]
-eff.sub <- effectors[effectors$sseqid=="PHYCAscaffold_39" & 
-                       apply(effectors[,c("sstart","send")],1,min) > (peak_bp-distance) &
-                       apply(effectors[,c("sstart","send")],1,min) < (peak_bp+distance),]
-# Plot, with gene "track" on bottom
-
 pdf("plots/LD_with_SNP.pdf")
-
-m <- rbind(1,1,1,1,2)
-layout(m)
 
 old.par <- par(no.readonly=T)
 par(mar=c(5,5,3,5))
@@ -216,23 +197,6 @@ points(snps.sub$BP[peak], lds.rescale[peak], pch=17, cex=0.9, col='orange')
 axis(side=4, at = seq(0,max(logp), length.out=6), labels = seq(0,max(lds), length.out=6))
 axis(side=1, at = seq(100000,1000000,by=100000), labels = seq(100000,1000000,by=100000)/1000)
 mtext(expression(italic("r")^2), side=4, line=3)
-
-#Plot 2: Gene track
-plot(0, type='n', xaxt='n', yaxt='n',xlab='',main='',ylab='',bty='n',
-     xlim=range(snps.sub$BP),
-     ylim=c(0,10))
-n.genes <- nrow(anno.sub)
-for(i in 1:n.genes){
-  if(!is.na(anno.sub$signalP[i])){
-    gene.col <- "red"
-  }else{
-    gene.col <- "black"
-  }
-  track <- 5 + runif(1,min=-3,max=3)
-  lines(c(anno.sub$start[i], anno.sub$end[i]),
-        c(track,track),
-        col=gene.col,lwd=2)
-}
 
 par(old.par)
 dev.off()
