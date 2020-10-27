@@ -237,33 +237,3 @@ pvals <- p.adjust(pvals, method="bonferroni")
 cluster_assignments <- data.frame("Isolate" = names(clust),
                                   "Cluster" = clust)
 write.csv(cluster_assignments, "tables/cluster_assignments.csv", quote=F, row.names = F)
-
-
-fw$group <- NA
-fw$group[fw$Slope > 1] <- 1
-fw$group[fw$Slope < 0.75 & fw$Intercept < 20] <- 2
-fw$group[fw$Slope < 0.75 & fw$Intercept > 20] <- 3
-
-fisher_p <- function(geno.x, geno.y){
-  geno.x <- geno.x[!is.na(geno.x)]
-  geno.y <- geno.y[!is.na(geno.y)]
-  x1 <- 2*sum(geno.x == 0) + sum(geno.x ==1)
-  x2 <- 2*sum(geno.x == 2) + sum(geno.x ==1)
-  y1 <- 2*sum(geno.y == 0) + sum(geno.y ==1)
-  y2 <- 2*sum(geno.y == 2) + sum(geno.y ==1)
-  con.table <- cbind(c(x1,x2),c(y1,y2))
-  fisher.out <- fisher.test(con.table)
-  return(fisher.out$p.value)
-}
-
-test_12 <- rep(NA, ncol(geno))
-test_13 <- rep(NA, ncol(geno))
-test_23 <- rep(NA, ncol(geno))
-
-for(i in 1:ncol(geno)){
-  geno.i <- geno[,i]
-  test_12 <- fisher_p(geno.i[fw$group==1], fw$group==2)
-  test_13 <- fisher_p(geno.i[fw$group==1], fw$group==3)
-  test_23 <- fisher_p(geno.i[fw$group==2], fw$group==3)
-}
-

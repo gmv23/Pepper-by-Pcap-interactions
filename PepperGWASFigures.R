@@ -200,3 +200,18 @@ mtext(expression(italic("r")^2), side=4, line=3)
 
 par(old.par)
 dev.off()
+
+
+
+window_size <- 10000
+windows <- seq(min(snps.sub$BP), max(snps.sub$BP), by = window_size)
+window_means <- rep(NA, length(windows))
+window_centers <- rep(NA, length(windows))
+for(i in 1:length(window_means)){
+  if(i == length(window_means)){
+    break
+  }
+  window_centers[i] <- mean(windows[i:(i+1)])
+  window_means[i] <- mean(lds[snps.sub$BP > windows[i] & snps.sub$BP <= windows[(i+1)]])
+}
+
