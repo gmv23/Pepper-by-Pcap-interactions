@@ -1,5 +1,5 @@
-setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pheno/")
-source("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/scripts/Functions_for_disease_analysis.R")
+setwd("~/Documents/Cornell/Pepper_Interactions/paper/pheno/")
+source("~/Documents/Cornell/Pepper_Interactions/paper/Pepper-by-Pcap-interactions/Functions_for_disease_analysis.R")
 
 library(reshape2)
 
