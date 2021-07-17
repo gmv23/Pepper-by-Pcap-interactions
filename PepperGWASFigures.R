@@ -1,4 +1,4 @@
-setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/gwas/")
+setwd("~/Documents/Cornell/Pepper_Interactions/paper/gwas/")
 library(grid)
 library(qqman)
 
@@ -47,7 +47,7 @@ fdr_cutoff <- function(x, alpha){
 }
 
 #Function to get plot coordinates for pane letters
-get_coords <- function(x=-0.05,y=1.3){
+get_coords <- function(x=-0.04,y=1.4){
   require(grid)
   x.coord <- grconvertX(x, "npc", "user")
   y.coord <- grconvertY(y, "npc", "user")
@@ -58,10 +58,10 @@ get_coords <- function(x=-0.05,y=1.3){
 draw_plots <- function(pvals.plot, name){
   
   n.plots <- ncol(pvals.plot)
-  jpeg(name, width=7, height=(1.5*n.plots), units="in",res=100)
+  pdf(name, width=7, height=(1.5*n.plots))
   
   old.par <- par(no.readonly = T)
-  par(mar=c(6.5,4.5,1,1.5), oma=c(0,1,1.5,1))
+  par(mar=c(5.5,4.5,0.25,1.5), oma=c(0,1,2.5,1), xpd=NA)
   
   #Get layout
   m <- c(rep(seq(1,((n.plots*2)-1),by=2),4),
@@ -87,14 +87,19 @@ draw_plots <- function(pvals.plot, name){
       xlab.man <- "Scaffold"
       xlab.qq <- expression(paste("Observed -log"[10], "(",italic("p"), ")", sep=""))
     }
-    manhattan(man.df,main=trait,suggestiveline=FALSE,
+    man.df$SNP <- 1:nrow(man.df)
+    par(xpd=F)
+    manhattan(man.df,suggestiveline=FALSE,
               genomewideline=genomewideline,
               xlab = xlab.man,
               ylim=c(0,-log10(min(pvals.plot))*1.1))
     par(xpd=NA)
+    mtext(trait,side=3,line=0.75)
     text(get_coords()[1], get_coords()[2], LETTERS[i], cex=1.7)
     par(xpd=F)
-    qq(man.df$P, main=trait, xlab=xlab.qq, ylab="")
+    qq(man.df$P, xlab=xlab.qq, ylab="")
+    par(xpd=NA)
+    mtext(trait,side=3,line=0.75)
     mtext("Expected", side=2, line=3.5, cex=0.65)
     mtext(expression(paste("-log"[10], "(",italic("p"),")")), side=2, line=2.25, cex=0.65)
     
@@ -112,8 +117,8 @@ pvals.sig <- pvals[,!is.na(thresholds)]
 pvals.insig <- pvals[,is.na(thresholds)]
 
 #Make plots
-draw_plots(pvals.sig, "plots/GWAS_sig.jpeg")
-draw_plots(pvals.insig, "plots/GWAS_insig.jpeg")
+draw_plots(pvals.sig, "plots/GWAS_sig.pdf")
+draw_plots(pvals.insig, "plots/GWAS_insig.pdf")
 
 ###########################################        Plot SNP effects       ########################################
 

@@ -1,4 +1,4 @@
-setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pheno/")
+setwd("~/Documents/Cornell/Pepper_Interactions/paper/pheno/")
 library(vioplot)
 library(RColorBrewer)
 library(stringr)
@@ -17,7 +17,7 @@ colnames(phenos)[colnames(phenos) == "RedKnight"] <- "Red\nKnight"
 colnames(phenos)[colnames(phenos) == "EarlyJalapeno"] <- "Early\nJalapeno"
 
 #Read assignment of isolates to fields/subpopulations
-pops <- read.csv("../../../isolate_collection/paper/phenotypes_and_clones/isolate_plotting_metadata.csv")
+pops <- read.csv("data/isolate_plotting_metadata.csv")
 pops$SampleSZ <- as.character(pops$SampleSZ)
 pops$SampleSZ[pops$SampleSZ=="14_55C"] <- "14_55" #Rename
 pops$SampleSZ <- as.factor(pops$SampleSZ)
@@ -72,7 +72,7 @@ plot(blues.dendro)
 #Reorder phenos in dendro order
 phenos <- phenos[,labels(blues.dendro)]
 
-pdf("plots/violinplot_with_dendro.pdf", width=7,height=6)
+pdf("plots/violinplot_with_dendro.pdf", width=7,height=5)
 old.par <- par(no.readonly = T)
 
 #Create layout
@@ -159,7 +159,7 @@ field_no <- as.integer(pops$Field)
 col_choices <- c(brewer.pal(9, "Pastel1"), brewer.pal(8, "Pastel2"), brewer.pal(6, "Set3"))
 field_col <- col_choices[match(field_no, 1:23)]
 
-pdf("plots/interaction_matrix.pdf")
+pdf("plots/interaction_matrix.pdf", height=7, width=7)
 old.par <- par(no.readonly = T)
 m <- matrix(1:110,nrow=10,ncol=11,byrow=T)
 m[10,7:11] <- 107
@@ -244,15 +244,15 @@ colnames(fw_params) <- c("Intercept", "Slope", "MSE")
 fw_params <- as.data.frame(fw_params)
 rownames(fw_params) <- rownames(phenos)
 
-#Save regressoin parameters
-write.csv(fw_params,"tables/fw_params.csv",quote=F,row.names = T)
-
 for(i in 1:n){
   fw.lm <- lm(unlist(phenos[i,])~pep_means)
   fw_params[i,1:2] <- fw.lm$coefficients
   fw_params[i,3] <- anova(fw.lm)$'Mean Sq'[2]
   print(paste(rownames(phenos)[i],summary(fw.lm)$r.squared, fw_params[i,3]))
 }
+
+#Save regressoin parameters
+write.csv(fw_params,"tables/fw_params.csv",quote=F,row.names = T)
 
 #function to turn usr plot coordinates into relative plot coordinates to plot pane letters
 get_coords <- function(x=-0.1,y=1.075){

@@ -1,4 +1,4 @@
-setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/pop_structure/")
+setwd("~/Documents/Cornell/Pepper_Interactions/paper/pop_structure/")
 library(pcaMethods)
 library(RColorBrewer)
 library(grid)
@@ -11,7 +11,7 @@ rownames(phenos) <- phenos$Isolate
 phenos$Isolate <- NULL
 
 #Read assignment of isolates to fields/subpopulations
-sites <- read.csv("../../../isolate_collection/paper/phenotypes_and_clones/isolate_plotting_metadata.csv")
+sites <- read.csv("../pheno/data/isolate_plotting_metadata.csv")
 sites$SampleSZ <- as.character(sites$SampleSZ)
 sites$SampleSZ[sites$SampleSZ =="14_55C"] <- "14_55"
 
@@ -168,7 +168,7 @@ get_coords <- function(x=-0.1,y=1.1){
   return(c(x.coord, y.coord))
 }
 
-pdf("plots/geno_and_phenos_pca.pdf")
+pdf("plots/geno_and_phenos_pca.pdf", width=7, height=7)
 old.par <- par(no.readonly = T)
 m <- rbind(c(1,3),
            c(1,3),
