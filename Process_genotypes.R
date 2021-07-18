@@ -1,7 +1,7 @@
 ##Filter genotype data for isolates in experiment and MAF > 0.05
 ##Create relationship matrix and calculate principal components
 
-setwd("~/Documents/work/Smart_lab/P_capsici/Pepper_Interactions/paper/geno/")
+setwd("~/Documents/Cornell/Pepper_Interactions/paper/geno/")
 library(rrBLUP)
 library(matrixcalc)
 
