@@ -33,11 +33,14 @@ fw <- fw[match(rownames(geno), rownames(fw)),]
 #Put phenos in same order as genos
 phenos <- phenos[match(rownames(geno), rownames(phenos)),]
 
+#Put sites in same order as genos
+sites <- sites[match(rownames(geno), sites$SampleSZ),]
+
 #Get rid of 'main' phenotype
 main_effects <- phenos$main
 phenos$main <- NULL
 
-###################              geno PCA vs PCA-biplot       ######################################
+###################              geno PCA vs pheno PCA       ######################################
 
 #Function to impute missing with mean
 impute <- function(x){
@@ -46,7 +49,7 @@ impute <- function(x){
 }
 geno.imp <- apply(geno,2,impute)
 
-#Calculate PCs and visualize screeplot
+#Calculate genotypic  PCs and visualize screeplot
 geno.pc <- prcomp(geno.imp, center = T, scale=T)
 screeplot(geno.pc)
 pcs.g <- geno.pc$x[,1:4]
@@ -54,14 +57,14 @@ pcs.g <- geno.pc$x[,1:4]
 #K-means clusters ---- first look at how within sum of square varies with increasing K 
 #in order to choose number clusters
 set.seed(5834785)
-max.clusters <- 10
+max.clusters <- 15
 wss <- rep(NA,max.clusters)
 wss[1] <- (nrow(pcs.g)-1)*sum(apply(pcs.g,2,var))
-for (i in 2:15){
+for (i in 2:max.clusters){
   km.i <- kmeans(pcs.g,centers=i,nstart=20,iter.max=1000)
   wss[i] <- sum(km.i$withinss)
 }
-plot(1:15, wss, type="b", xlab="Number of Clusters",
+plot(1:max.clusters, wss, type="b", xlab="Number of Clusters",
      ylab="Within groups sum of squares")
 
 #Put screeplot and K-means cluster plot together in one supplemental plot
@@ -84,6 +87,7 @@ dev.off()
 
 #Now identify clusters
 n.clusters <- 5
+set.seed(1515)
 pcs.km <- kmeans(pcs.g, n.clusters, nstart=20, iter.max=1000)
 clust <- as.factor(pcs.km$cluster)
 color_choices <- brewer.pal(n.clusters, "Set1")
@@ -91,8 +95,7 @@ color_assignments <- color_choices[match(clust, 1:n.clusters)]
 
 #How do clusters relate to field sites
 sites$cluster <- clust[match(sites$SampleSZ, names(clust))]
-sites <- sites[!is.na(sites$clust),]
-sites <- sites[order(sites$clust),]
+sites <- sites[order(sites$cluster),]
 table(sites$Field, sites$cluster)
 
 #Impute missing data in phenotypes and calculate phenotype PCs
@@ -113,7 +116,7 @@ for(i in 1:4){
           ylab="Loading")
   text(get_coords()[1], get_coords()[2], LETTERS[i], cex=1.5)
   if(i == 4){
-    barplot.data <-  barplot(pheno.pc$rotation[,i], plot=F)
+    barplot.data <- barplot(pheno.pc$rotation[,i], plot=F)
     axis(1, at=barplot.data, labels=rownames(pheno.pc$rotation),las=2)
   }
 }
@@ -157,9 +160,12 @@ pheno.pc$rotation
 
 #Overall virulence by cluster
 vir.lm <- lm(main_effects ~ clust)
+anova(vir.lm)
+summary(vir.lm)
 aggregate(main_effects~clust, FUN=mean)
 aggregate(main_effects~clust, FUN=function(x)sqrt(var(x)))
 
+#######################      Make plot of genotypic and phenotypic PCs      ###################
 
 #function to turn usr plot coordinates into relative plot coordinates to plot pane letters
 get_coords <- function(x=-0.1,y=1.1){
