@@ -13,6 +13,8 @@ colnames(pep)[colnames(pep) == "Isolate.Name"] <- "Isolate"
 #Get rid of rows with NAs (trays that weren't inoculated bc of inoculum problems)
 na_rows <- which(apply(pep[,8:13], 1, function(x) any(is.na(x))))
 pep <- pep[-na_rows,]
+pep$Isolate <- as.factor(pep$Isolate)
+pep$Pepper <- as.factor(pep$Pepper)
 pep$Isolate <- droplevels(pep$Isolate)
 
 #Look at number of times each pepper and isolate appears
@@ -37,12 +39,16 @@ any(pep$audpc[pep$Isolate == "H2O"] != 0)
 pep <- pep[pep$Isolate != "H2O",]
 pep$Isolate <- droplevels(pep$Isolate)
 pep$Isolate.CC <- NULL
+checks <- c("CHECK1", "CHECK2", "CHECK3")
 
 #How many observations excluding checks?
 total_obs <- nrow(pep); total_obs
 exp_obs <- sum(!pep$Isolate %in% c("CHECK1", "CHECK2", "CHECK3")); exp_obs
 total_obs_all_time_points <- total_obs*6; total_obs_all_time_points
 exp_obs_all_time_points <- exp_obs*6; exp_obs_all_time_points
+unique_combinations <- length(unique((pep$Isolate:pep$Pepper)[!is.na(pep$audpc) & 
+                                                              !as.character(pep$Isolate) %in% checks]))
+unique_combinations
 
 #Turn phenotype into cause disease or not cause disease
 #Get sum of number reps an isolate caused any disease on a given pepper

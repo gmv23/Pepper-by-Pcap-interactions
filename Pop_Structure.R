@@ -11,7 +11,7 @@ rownames(phenos) <- phenos$Isolate
 phenos$Isolate <- NULL
 
 #Read assignment of isolates to fields/subpopulations
-sites <- read.csv("../pheno/data/isolate_plotting_metadata.csv")
+sites <- read.csv("../pheno/tables/renamed_field_metadata.csv")
 sites$SampleSZ <- as.character(sites$SampleSZ)
 sites$SampleSZ[sites$SampleSZ =="14_55C"] <- "14_55"
 
@@ -96,7 +96,8 @@ color_assignments <- color_choices[match(clust, 1:n.clusters)]
 #How do clusters relate to field sites
 sites$cluster <- clust[match(sites$SampleSZ, names(clust))]
 sites <- sites[order(sites$cluster),]
-table(sites$Field, sites$cluster)
+clusters_by_sites <- table(sites$Field, sites$cluster)
+write.csv(clusters_by_sites, "tables/clusters_by_sites.csv", quote=F)
 
 #Impute missing data in phenotypes and calculate phenotype PCs
 pheno.imp <- apply(phenos, 2, impute)
@@ -123,31 +124,6 @@ for(i in 1:4){
 par(old.par)
 dev.off()
 
-#correlations of genotypic and phenotypic pcs
-cors <- matrix(NA,nrow=4,ncol=4)
-sigs <- matrix(F, nrow=4, ncol=4)
-for(i in 1:4){
-  for(j in 1:4){
-    pcs.cor <- cor.test(pcs.g[,i],pcs.p[,j])
-    cors[i,j] <- pcs.cor$estimate
-    sigs[i,j] <- pcs.cor$p.value
-  }
-}
-cors
-which(sigs < .05/16, arr.ind = T)
-
-#ANOVA phenotypic PCs by genetic cluster
-anova(lm(pcs.p[,1] ~ clust))$'Pr(>F)'[1]*4
-anova(lm(pcs.p[,2] ~ clust))$'Pr(>F)'[1]*4
-anova(lm(pcs.p[,3] ~ clust))$'Pr(>F)'[1]*4
-anova(lm(pcs.p[,4] ~ clust))$'Pr(>F)'[1]*4
-
-pc3.lm <- lm(pcs.p[,3] ~ clust)
-summary(pc3.lm)
-
-pc4.lm <- lm(pcs.p[,4] ~ clust)
-summary(pc4.lm)
-
 #What are the phenotypic PCS?
 #PC 1 relates to general virulence
 cor.test(pcs.p[,1], main_effects)
@@ -157,13 +133,6 @@ cor.test(pcs.p[,2], fw$Slope)
 
 #PC 3 harder to define
 pheno.pc$rotation
-
-#Overall virulence by cluster
-vir.lm <- lm(main_effects ~ clust)
-anova(vir.lm)
-summary(vir.lm)
-aggregate(main_effects~clust, FUN=mean)
-aggregate(main_effects~clust, FUN=function(x)sqrt(var(x)))
 
 #######################      Make plot of genotypic and phenotypic PCs      ###################
 
@@ -229,15 +198,18 @@ dev.off()
 
 ###################              ANOVA --- cluster vs phenotype       ######################################
 
-p <- ncol(phenos)
+phenos.all <- cbind(phenos, pcs.p)
+p <- ncol(phenos.all)
 pvals <- rep(NA,p)
 for(i in 1:p){
-  clust.lm <- lm(phenos[,i] ~ clust)
+  clust.lm <- lm(phenos.all[,i] ~ clust)
   clust.anova <- anova(clust.lm)
   pvals[i] <- clust.anova$`Pr(>F)`[1]
 }
-names(pvals) <- colnames(phenos)
-pvals <- p.adjust(pvals, method="bonferroni")
+names(pvals) <- colnames(phenos.all)
+pvals.adj <- p.adjust(pvals, method="fdr")
+
+summary(lm(phenos.all[,"PC3"] ~ clust))
 
 #Write clusters
 cluster_assignments <- data.frame("Isolate" = names(clust),

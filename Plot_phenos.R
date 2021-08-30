@@ -149,6 +149,7 @@ new_field_names <- sapply(field_names, rename)
 names(new_field_names) <- NULL
 pops$Field <- new_field_names
 pops$Field <- as.factor(pops$Field)
+write.csv(pops, "tables/renamed_field_metadata.csv", quote=F, row.names = F)
 
 n <- nrow(phenos) #Number of isolates
 p <- ncol(phenos) #Number of peppers
@@ -244,11 +245,15 @@ colnames(fw_params) <- c("Intercept", "Slope", "MSE")
 fw_params <- as.data.frame(fw_params)
 rownames(fw_params) <- rownames(phenos)
 
+r2s <- rep(NA, nrow=n)
+
 for(i in 1:n){
   fw.lm <- lm(unlist(phenos[i,])~pep_means)
   fw_params[i,1:2] <- fw.lm$coefficients
+  r2 <- summary(fw.lm)$r.squared
   fw_params[i,3] <- anova(fw.lm)$'Mean Sq'[2]
-  print(paste(rownames(phenos)[i],summary(fw.lm)$r.squared, fw_params[i,3]))
+  r2s[i] <- r2
+  print(paste(rownames(phenos)[i],r2, fw_params[i,3]))
 }
 
 #Save regressoin parameters
