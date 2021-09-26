@@ -9,6 +9,8 @@ pep$Rep <- as.factor(pep$Rep)
 pep$Block <- as.factor(pep$Block)
 pep$Tray <- as.factor(pep$Tray)
 pep$Column <- as.factor(pep$Column)
+pep$Pepper <- as.factor(pep$Pepper)
+pep$Isolate <- as.factor(pep$Isolate)
 
 #Read blues from full dataset
 blues <- read.csv("tables/virulence_blues.csv")
