@@ -37,19 +37,11 @@ geno.pca <- read.csv("../geno/data/pcs.csv")
 rownames(geno.pca) <- geno.pca$X
 geno.pca$X <- NULL
 
-#Read phenotype PCs
-pheno.pca <- read.csv("../pop_structure/tables/phenotypic_pcs.csv")
-rownames(pheno.pca) <- pheno.pca$X
-pheno.pca$X <- NULL
-colnames(pheno.pca) <- paste("Pheno", colnames(pheno.pca), sep="")
-pheno.pca$PhenoPC1 <- NULL #Get rid of pheno PC 1 since it is essentially isolate main effect
-
 #Put all datasets in VCF sample order
 sample_order <- getScanID(geno.gds)
 phenos <- phenos[match(sample_order, rownames(phenos)),]
 geno <- geno[match(sample_order, rownames(geno)),]
 geno.pca <- geno.pca[match(sample_order, rownames(geno.pca)),]
-pheno.pca <- pheno.pca[match(sample_order, rownames(pheno.pca)),]
 
 ###################################        Functions for GWAS        ########################################
 
@@ -138,9 +130,6 @@ fdr_cutoff <- function(x, alpha){
 
 ###################################        Put together phenotypes and covariates        ########################################
 
-#Add pheno PCs to phenotypes data frame
-phenos <- cbind(phenos, pheno.pca)
-
 #Make new phenos data frame with transformed phenos
 transformations <- rep(NA, ncol(phenos))
 names(transformations) <- colnames(phenos)
@@ -219,7 +208,7 @@ p.summary <- data.frame("Pepper" = colnames(pvals),
                         "Allelic_effect" = NA)
 
 for(i in 1:nrow(p.summary)){
-  mod <- lm(phenos[,i] ~ as.integer(as.character(sig_geno)))
+  mod <- lm(phenos_transformed[,i] ~ as.integer(as.character(sig_geno)))
   p.summary$R2[i] <- summary(mod)$r.squared
   effect <- mod$coefficients[2]
   p.summary$Allelic_effect[i] <- effect

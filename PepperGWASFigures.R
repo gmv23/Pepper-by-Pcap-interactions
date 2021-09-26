@@ -21,7 +21,7 @@ rownames(phenos) <- phenos$Isolate
 phenos$Isolate <- NULL
 
 #Read GWAS pvalues
-pvals <- read.csv("../gwas/tables/gwas_pvalues.csv")
+pvals <- read.csv("data/gwas_pvalues.csv")
 
 #Put genos and phenos in same order
 phenos <- phenos[match(rownames(geno), rownames(phenos)),]

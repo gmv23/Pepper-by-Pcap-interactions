@@ -200,18 +200,28 @@ dev.off()
 
 phenos.all <- cbind(phenos, pcs.p)
 p <- ncol(phenos.all)
+cluster_results <- data.frame("Trait" = colnames(phenos.all),
+                              "R2" = NA,
+                              "p"  = NA,
+                              "p.adjust" = NA)
 pvals <- rep(NA,p)
 for(i in 1:p){
   clust.lm <- lm(phenos.all[,i] ~ clust)
   clust.anova <- anova(clust.lm)
-  pvals[i] <- clust.anova$`Pr(>F)`[1]
+  cluster_results$R2[i] <- summary(clust.lm)$"r.squared"*100
+  cluster_results$p[i] <- clust.anova$"Pr(>F)"[1]
 }
-names(pvals) <- colnames(phenos.all)
-pvals.adj <- p.adjust(pvals, method="fdr")
 
-summary(lm(phenos.all[,"PC3"] ~ clust))
+cluster_results$p.adjust <- p.adjust(cluster_results$p, method="bonferroni")
+
 
 #Write clusters
 cluster_assignments <- data.frame("Isolate" = names(clust),
                                   "Cluster" = clust)
 write.csv(cluster_assignments, "tables/cluster_assignments.csv", quote=F, row.names = F)
+
+#Write results of regressing phenotypes on cluster
+cluster_results.clean <- cluster_results
+cluster_results.clean[,3:4] <- apply(cluster_results[,3:4], 2, signif, digits=2)
+cluster_results.clean$R2 <- round(cluster_results$R2, digits = 2)
+write.csv(cluster_results.clean, "tables/cluster_tests.csv", quote=F, row.names=F)
