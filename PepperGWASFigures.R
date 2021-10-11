@@ -20,6 +20,14 @@ phenos <- read.csv("data/virulence_blues.csv")
 rownames(phenos) <- phenos$Isolate
 phenos$Isolate <- NULL
 
+#Read phenotypic PCs and add to phenos
+pheno.pca <- read.csv("../pop_structure/tables/phenotypic_pcs.csv")
+rownames(pheno.pca) <- pheno.pca$X
+pheno.pca$X <- NULL
+pheno.pca <- pheno.pca[match(rownames(phenos), rownames(pheno.pca)),]
+colnames(pheno.pca) <- paste("Pheno", colnames(pheno.pca), sep="")
+phenos <- cbind(phenos, pheno.pca)
+
 #Read GWAS pvalues
 pvals <- read.csv("data/gwas_pvalues.csv")
 
@@ -207,5 +215,43 @@ par(old.par)
 dev.off()
 
 
+#### Get and write SNP p-values, R2s, and additive allelic effects ###
+
+#Which is the significant SNP we identified
+sig_snp <- which(pvals$RedKnight == min(pvals$RedKnight))
+sig_geno <- geno[,sig_snp]
+
+p.summary <- data.frame("Pepper" = colnames(pvals),
+                        "P" = unlist(pvals[sig_snp,]),
+                        "R2" = NA,
+                        "Allelic_effect" = NA)
+
+for(i in 1:nrow(p.summary)){
+  mod <- lm(phenos_transformed[,i] ~ as.integer(as.character(sig_geno)))
+  p.summary$R2[i] <- summary(mod)$r.squared
+  effect <- mod$coefficients[2]
+  p.summary$Allelic_effect[i] <- effect
+}
+
+p.summary$P <- sapply(p.summary$P, signif, digits=2)
+p.summary$R2 <- sapply(p.summary$R2, round, digits=2)
+p.summary$Allelic_effect <- sapply(p.summary$Allelic_effect, round, digits=2)
+
+write.csv(p.summary, "tables/pval_summary.csv", quote=F, row.names = F)
+
+###########################################        Random calculations       ########################################
+
+#This SNP is top X % in each of the traits
+sig_ps <- unlist(pvals[sig_snp,])
+percentiles <- rep(NA, length(sig_ps))
+names(percentiles) = colnames(pvals)
+for(i in 1:ncol(pvals)){
+  percentiles[i] <- sum(pvals[,i] <= sig_ps[i])/nrow(pvals)
+}
+percentiles*100
+
+#MAF
+sig_calls <- sig_geno[!is.na(sig_geno)]
+(sum(sig_calls==1)*2 + sum(sig_calls=2)) / (2*length(sig_calls))
 
 

@@ -1,4 +1,3 @@
-#setwd("/workdir/gmv23/peppers/pheno")
 setwd("~/Documents/Cornell/Pepper_Interactions/paper/gwas/")
 library(rrBLUP)
 library(GENESIS)
@@ -37,6 +36,14 @@ geno.pca <- read.csv("../geno/data/pcs.csv")
 rownames(geno.pca) <- geno.pca$X
 geno.pca$X <- NULL
 
+#Read phenotypic PCs and add to phenos
+pheno.pca <- read.csv("../pop_structure/tables/phenotypic_pcs.csv")
+rownames(pheno.pca) <- pheno.pca$X
+pheno.pca$X <- NULL
+pheno.pca <- pheno.pca[match(rownames(phenos), rownames(pheno.pca)),]
+colnames(pheno.pca) <- paste("Pheno", colnames(pheno.pca), sep="")
+phenos <- cbind(phenos, pheno.pca)
+
 #Put all datasets in VCF sample order
 sample_order <- getScanID(geno.gds)
 phenos <- phenos[match(sample_order, rownames(phenos)),]
@@ -45,74 +52,57 @@ geno.pca <- geno.pca[match(sample_order, rownames(geno.pca)),]
 
 ###################################        Functions for GWAS        ########################################
 
-#######  Test if log transform improves normality #######
-
-try_log <- function(x){
-  
-  #Shift distribution so minimum value = 1
-  x.min <- min(x, na.rm=T)
-  if(x.min < 1){
-    raw <- x + (1-x.min)
-  }else{
-    raw <- x
-  }
-  
-    transform <- log(raw)
-    
-    #Shapiro-Wilk test
-    raw.W <- shapiro.test(raw)$statistic
-    transform.W <- shapiro.test(transform)$statistic
-   
-    #Return data and whether or not it was transformed
-    if(raw.W < transform.W){
-      return(list("data" = transform, "transform" = TRUE))
-    }else{
-      return(list("data" = x, "transform" = FALSE))
-    }
-}
-
 #######  Perform model testing in GENESIS with K and PCs #######
 
-test_models <- function(scanAnnot, outcome, plot=T){
+test_models <- function(scanAnnot, outcome, plot=T, K){
   
-  models <- list()
+  covars.list <- list(NULL,
+                c("PC1"),
+                c("PC1", "PC2"),
+                c("PC1", "PC2", "PC3"),
+                c("PC1", "PC2", "PC3", "PC4"))
   
-  models$simple <- fitNullModel(x=scanAnnot, outcome = outcome,
-                             family = gaussian)
-  models$K <- fitNullModel(x=scanAnnot, outcome = outcome,
-                        cov.mat = K, family = gaussian)
-  models$KQ1 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1"),
-                          cov.mat = K, family = gaussian)
-  models$Q1 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1"),
-                         family = gaussian)
-  models$KQ2 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1","PC2"),
-                          cov.mat = K, family = gaussian)
-  models$Q2 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1", "PC2"),
-                         family = gaussian)
-  models$KQ3 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1","PC2", "PC3"),
-                          cov.mat = K, family = gaussian)
-  models$Q3 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1", "PC2", "PC3"),
-                         family = gaussian)
-  models$KQ4 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1","PC2", "PC3", "PC4"),
-                          cov.mat = K, family = gaussian)
-  models$Q4 <- fitNullModel(x=scanAnnot, outcome = outcome, covars = c("PC1","PC2", "PC3", "PC4"),
-                         family = gaussian)
+  cov.mat.list <- list(NULL,K)
   
-  model_names <- names(models)
-  model_AICs <- sapply(models, function(x) x$AIC)
-  n.models <- length(model_names)
-  if(plot){
-    plot(1:n.models, model_AICs,
-         ylab = "AIC", xlab = "", xaxt="n", col='white', 
-         main = outcome)
-    axis(1, at=1:n.models, las="2", labels = model_names)
-    text(1:n.models, model_AICs, labels=round(model_AICs,2))
+  results <- list()
+  counter <- 0
+  for(i in 1:length(covars.list)){
+    for(j in 1:length(cov.mat.list)){
+      counter <- counter + 1
+      covars <- covars.list[[i]]
+      cov.mat <- cov.mat.list[[j]]
+      model <- fitNullModel(x=scanAnnot, outcome = outcome, family = gaussian,
+                            covars = covars, cov.mat = cov.mat)
+      results[counter] <- list(list(covars = covars, cov.mat = cov.mat, model = model))                    
+    }
   }
   
-  model_choose <- which(model_AICs == min(model_AICs))
-  return(list(name=model_names[model_choose],
-              model=models[[model_choose]]))
+  aics <- data.frame("Model" = 1:counter,
+                     "Covars" = sapply(results, function(x) paste(x$covars, collapse = " ")),
+                     "Covar_matrix" = sapply(results, function(x) !is.null(x$cov.mat)),
+                     "AIC" = sapply(results, function(x) x$model$AIC))
+  if(plot){
+    pdf(paste("plots/model_testing_", outcome, ".pdf", sep=""))
+    old.par <- par(no.readonly = T)
+    par(mar=c(12,4,2,2))
+    plot(1:counter, aics$AIC,
+         ylab = "AIC", xlab = "", col='white', xaxt='n',
+         main = outcome)
+    axis(1, at=1:counter, las="2", labels = paste(aics$Covars, aics$Covar_matrix), cex=0.75)
+    text(1:counter, aics$AIC, labels=round(aics$AIC, 3))
+    par(old.par)
+    dev.off()
+  }
   
+  model_choose <- which(aics$AIC == min(aics$AIC))
+  if(is.null(results[[model_choose]]$cov.mat)){
+    res <- results[[model_choose]]$model$resid.marginal
+  }else{
+    res <- results[[model_choose]]$model$resid.conditional
+  }
+  return(list(covars = results[[model_choose]]$covars,
+              cov.mat = results[[model_choose]]$cov.mat,
+              res = res))
 }
 
 #######  Find FDR Threshold #######
@@ -126,58 +116,92 @@ fdr_cutoff <- function(x, alpha){
   }else{
     threshold <- NA
   }
+  return(threshold)
 }
 
-###################################        Put together phenotypes and covariates        ########################################
+#######  Shift distribution and log transform #######
 
-#Make new phenos data frame with transformed phenos
-transformations <- rep(NA, ncol(phenos))
-names(transformations) <- colnames(phenos)
-phenos_transformed <- phenos
-for(i in 1:ncol(phenos_transformed)){
-  transform_test <- try_log(phenos[,i])
-  phenos_transformed[,i] <- transform_test$data
-  transformations[i] <- transform_test$transform
-  hist(transform_test$data, 
-       main=paste(colnames(phenos_transformed)[i],transform_test$transform, sep=": "))
+transform <- function(x){
+  x.min <- min(x, na.rm=T)
+  if(x.min < 1){
+    x.shift <- x + (1-x.min)
+  }else{
+    x.shift <- x
+  }
+  return(log(x.shift))
 }
 
-#Make ScanAnnotationDataFrame object with phenotypes and covariates
+###################################        Model test and Run GWAS        ########################################
+
+#Get genomic relationship matrix
+K <- A.mat(geno-1)
+rownames(K) <- rownames(phenos)
+colnames(K) <- rownames(phenos)
+
+#Make starting scanAnnot object
 scanAnnot.df <- data.frame("scanID" = rownames(phenos),
                            "PC1" = geno.pca[,1],
                            "PC2" = geno.pca[,2],
                            "PC3" = geno.pca[,3],
                            "PC4" = geno.pca[,4],
-                           phenos_transformed)
-
+                           phenos)
 scanAnnot <- ScanAnnotationDataFrame(scanAnnot.df)
 
-#Make GenotypeData object
-genoData <- GenotypeData(geno.gds, scanAnnot = scanAnnot)
-
-#Get genomic relationship matrix
-K <- A.mat(geno-1)
-rownames(K) <- scanAnnot.df$scanID
-colnames(K) <- scanAnnot.df$scanID
-
-#Save transformed phenos
-write.csv(phenos_transformed, "tables/transformed_blues.csv", quote=F, row.names=T)
-
-###########################################        RUN GWAS        ########################################
-
-models <- rep(NA, ncol(phenos_transformed))
-names(models) <- colnames(phenos_transformed)
-
-pvals <- matrix(NA, nrow=nrow(snps), ncol=ncol(phenos_transformed))
-colnames(pvals) <- colnames(phenos_transformed)
+#Make variables used in loop or to store results from looping through traits
+p <- ncol(phenos)
+model_summaries <- data.frame("Trait" = colnames(phenos),
+                              "Covariates" = NA,
+                              "K" = NA,
+                              "Transformed" = NA)
+pvals <- matrix(NA, nrow=nrow(snps), ncol=p)
+colnames(pvals) <- colnames(phenos)
 pvals <- as.data.frame(pvals)
 
-for(i in 1:ncol(phenos_transformed)){
-  trait <- colnames(phenos_transformed)[i]
-  best_model <- test_models(scanAnnot=scanAnnot, outcome=trait, plot=T)
-  null_model <- best_model$model
-  models[i] <- best_model$name
+for(i in 1:p){
+  trait <- colnames(phenos)[i]
   
+  #Find best covariates
+  test_out <- test_models(scanAnnot = scanAnnot, outcome = trait, plot = T, K=K)
+  hist(test_out$res, main=trait)
+  
+  #Test if residuals are normal
+  shap.test <- shapiro.test(test_out$res)
+  
+  transformed <- FALSE
+  if(shap.test$p.value < 0.05){
+    scanAnnot.df.test <- scanAnnot.df
+    
+    #If residuals non normal, transform phenotype and compare normality of residuals 
+    scanAnnot.df.test[,trait] <- transform(scanAnnot.df.test[,trait])
+    scanAnnot.test <- ScanAnnotationDataFrame(scanAnnot.df.test)
+    log_out <- fitNullModel(x=scanAnnot.test, outcome = trait, family = gaussian,
+                 covars = test_out$covars, cov.mat = test_out$cov.mat)
+   
+     if(is.null(test_out$cov.mat)){
+      log_out_res <- log_out$resid.marginal
+    }else{
+      log_out_res <- log_out$resid.conditional
+    }
+    shap.log <- shapiro.test(log_out_res)
+    if(shap.log$statistic > shap.test$statistic){
+      transformed <- TRUE
+      scanAnnot.df[,trait] <- scanAnnot.df.test[,trait]
+    }else{
+      transformed <- FALSE
+    }
+    scanAnnot <- ScanAnnotationDataFrame(scanAnnot.df)
+  }
+  
+  #Find best model again, using 'correct' phenotype (transformed or non transformed)
+  best_model <- test_models(scanAnnot = scanAnnot, outcome = trait, plot = T, K=K)
+  model_summaries[i,2:4] <- c(paste(best_model$covars, collapse=" "),
+                      !is.null(best_model$cov.mat),
+                      transformed)
+  
+  #Run GWAS
+  null_model <- fitNullModel(x=scanAnnot, outcome = trait, family = gaussian,
+                             covars = best_model$covars, cov.mat = best_model$cov.mat)
+  genoData <- GenotypeData(geno.gds, scanAnnot = scanAnnot)
   genoIterator <- GenotypeBlockIterator(genoData,snpBlock = 10000)
   assoc <- assocTestSingle(gdsobj=genoIterator, null.model=null_model)
   pvals[,i] <- assoc$Score.pval
@@ -187,51 +211,10 @@ close(geno.gds)
 
 ###########################################        Save results        ########################################
 
-gwas_models <- data.frame("Trait" = colnames(phenos_transformed),
-                          "Log_transform" = transformations,
-                          "model" = models)
-rownames(gwas_models) <- NULL
-write.csv(gwas_models, "tables/gwas_models.csv", quote=F, row.names=F)
+write.csv(model_summaries, "tables/gwas_models.csv", quote=F, row.names=F)
 
 pvals_write <- cbind(snps, pvals)
 write.csv(pvals_write, "data/gwas_pvalues.csv", quote=F, row.names=F)
 
-#### Get and write SNP p-values, R2s, and additive allelic effects ###
 
-#Which is the significant SNP we identified
-sig_snp <- which(pvals$RedKnight == min(pvals$RedKnight))
-sig_geno <- geno[,sig_snp]
-
-p.summary <- data.frame("Pepper" = colnames(pvals),
-                        "P" = unlist(pvals[sig_snp,]),
-                        "R2" = NA,
-                        "Allelic_effect" = NA)
-
-for(i in 1:nrow(p.summary)){
-  mod <- lm(phenos_transformed[,i] ~ as.integer(as.character(sig_geno)))
-  p.summary$R2[i] <- summary(mod)$r.squared
-  effect <- mod$coefficients[2]
-  p.summary$Allelic_effect[i] <- effect
-}
-
-p.summary$P <- sapply(p.summary$P, signif, digits=2)
-p.summary$R2 <- sapply(p.summary$R2, round, digits=2)
-p.summary$Allelic_effect <- sapply(p.summary$Allelic_effect, round, digits=2)
-
-write.csv(p.summary, "tables/pval_summary.csv", quote=F, row.names = F)
-
-###########################################        Random calculations       ########################################
-
-#This SNP is top X % in each of the traits
-sig_ps <- unlist(pvals[sig_snp,])
-percentiles <- rep(NA, length(sig_ps))
-names(percentiles) = colnames(pvals)
-for(i in 1:ncol(pvals)){
-  percentiles[i] <- sum(pvals[,i] <= sig_ps[i])/nrow(pvals)
-}
-percentiles*100
-
-#MAF
-sig_calls <- sig_geno[!is.na(sig_geno)]
-(sum(sig_calls==1)*2 + sum(sig_calls=2)) / (2*length(sig_calls))
 
