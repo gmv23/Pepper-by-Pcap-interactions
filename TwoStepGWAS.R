@@ -44,6 +44,9 @@ pheno.pca <- pheno.pca[match(rownames(phenos), rownames(pheno.pca)),]
 colnames(pheno.pca) <- paste("Pheno", colnames(pheno.pca), sep="")
 phenos <- cbind(phenos, pheno.pca)
 
+#Get rid of pheno PC1 because it is basically across-pepper virulence with a different distribution
+phenos$PhenoPC1 <- NULL
+
 #Put all datasets in VCF sample order
 sample_order <- getScanID(geno.gds)
 phenos <- phenos[match(sample_order, rownames(phenos)),]
@@ -162,7 +165,7 @@ for(i in 1:p){
   
   #Find best covariates
   test_out <- test_models(scanAnnot = scanAnnot, outcome = trait, plot = T, K=K)
-  hist(test_out$res, main=trait)
+  #hist(test_out$res, main=trait)
   
   #Test if residuals are normal
   shap.test <- shapiro.test(test_out$res)
@@ -207,8 +210,6 @@ for(i in 1:p){
   pvals[,i] <- assoc$Score.pval
 }
 
-close(geno.gds)
-
 ###########################################        Save results        ########################################
 
 write.csv(model_summaries, "tables/gwas_models.csv", quote=F, row.names=F)
@@ -216,5 +217,7 @@ write.csv(model_summaries, "tables/gwas_models.csv", quote=F, row.names=F)
 pvals_write <- cbind(snps, pvals)
 write.csv(pvals_write, "data/gwas_pvalues.csv", quote=F, row.names=F)
 
+#Close geno.gds object
+close(geno.gds)
 
 

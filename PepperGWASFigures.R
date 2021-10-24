@@ -27,6 +27,8 @@ pheno.pca$X <- NULL
 pheno.pca <- pheno.pca[match(rownames(phenos), rownames(pheno.pca)),]
 colnames(pheno.pca) <- paste("Pheno", colnames(pheno.pca), sep="")
 phenos <- cbind(phenos, pheno.pca)
+#Get rid of pheno PC1 because it is basically across-pepper virulence with a different distribution
+phenos$PhenoPC1 <- NULL
 
 #Read GWAS pvalues
 pvals <- read.csv("data/gwas_pvalues.csv")
@@ -39,7 +41,7 @@ snps <- pvals[,c("CHROM","BP","MARKER")]
 pvals <- pvals[,!colnames(pvals) %in% c("CHROM","BP","MARKER")]
 colnames(pvals)[colnames(pvals) == "main"] <- "Across-pepper"
 
-###########################################        Plot manhattan and qq plots        ########################################
+###########################################        Functions        ########################################
 
 #Function to get FDR threshold
 
@@ -119,47 +121,162 @@ draw_plots <- function(pvals.plot, name){
   
 }
 
-#Separate into peppers with significant hits and those without
+
+###########################################    Identify significant hits     ####################################3
+
+#FDR threshold for each trait
 thresholds <- apply(pvals, 2, fdr_cutoff, alpha = 0.10)
-pvals.sig <- pvals[,!is.na(thresholds)]
-pvals.insig <- pvals[,is.na(thresholds)]
 
+#Which markers are significant for each tray
+sig_hits <- matrix(NA, nrow=nrow(pvals), ncol=ncol(pvals), dimnames = dimnames(pvals))
+p <- length(thresholds)
+for(i in 1:p){
+  sig_hits[,i] <- pvals[,i] <= thresholds[i]
+  print(which(sig_hits[,i] <- pvals[,i] <= thresholds[i]))
+}
+
+#Significant markers for one or more traits
+sig_markers <- snps[apply(sig_hits, 1, any, na.rm=T),]
+
+#Peak markers for each scaffold
+sig_scaffolds <- unique(sig_markers$CHROM)
+n.sig_scaffolds <- length(sig_scaffolds)
+peak_markers <- matrix(NA, ncol=ncol(sig_markers), 
+                       nrow=n.sig_scaffolds)
+peak_markers <- as.data.frame(peak_markers)
+colnames(peak_markers) <- colnames(sig_markers)
+for(i in 1:n.sig_scaffolds){
+  scaffold <- sig_scaffolds[i]
+  sig_markers.scaff <- sig_markers[sig_markers$CHROM == scaffold,]
+  peak_marker <- sig_markers.scaff[sig_markers.scaff$BP == 
+                                          min(sig_markers.scaff$BP),]
+  peak_markers[i,] <- peak_marker
+}
+
+##################################    Make table of allelic effects, R2, pvals, ranks     ####################################3
+
+p.summary <- data.frame("Trait" = colnames(phenos))
+
+for(i in 1:nrow(peak_markers)){ #Loop through peak markers
+  
+  #Pull marker genotype
+  marker <- peak_markers$MARKER[i]
+  marker.index <- which(snps$CHROM == peak_markers$CHROM[i] &
+                          snps$BP == peak_markers$BP[i])
+  marker.geno <- geno[,marker.index]
+
+  #Store results for that marker
+  marker.summary <- data.frame("Trait" = colnames(phenos),
+                               "R2" = NA,
+                               "Effect" = NA,
+                               "Hit_no" = NA,
+                               "Hit_percentile" = NA)
+
+  for(j in 1:nrow(p.summary)){ #Loop through traits
+    
+    #Fit model -- fit marker as numerical to get allelic effect
+    mod <- lm(phenos[,j] ~ marker.geno)
+    
+    #Populate data frame with data from simple linear model
+    marker.summary$R2[j] <- summary(mod)$r.squared
+    marker.summary$Effect[j] <- mod$coefficients[2]
+    
+    #Add info on GWAS pvalue rank
+    marker.pval <- pvals[marker.index,j]
+    pvals.order <- sort(pvals[,j], decreasing=F)
+    marker.rank <- which(pvals.order == marker.pval)
+    marker.summary$Hit_no[j] <- marker.rank
+    marker.summary$Hit_percentile[j] <- marker.rank/length(pvals.order) * 100
+  }
+  
+  #Round values and append info for that marker to dataframe
+  marker.summary$R2 <- sapply(marker.summary$R2, round, digits=2)
+  marker.summary$Effect <- sapply(marker.summary$Effect, round, digits=2)
+  marker.summary$Hit_percentile <- sapply(marker.summary$Hit_percentile, round, digits=2)
+  colnames(marker.summary)[2:ncol(marker.summary)] <- 
+    paste(marker, "_", colnames(marker.summary)[2:ncol(marker.summary)], sep="")
+  p.summary <- merge(p.summary,marker.summary, sort=F)
+}
+
+write.csv(p.summary, "tables/pval_summary.csv", quote=F, row.names = F)
+
+###########################################    Make Manhattan and QQ plots     ####################################3
+
+#Separate into traits with significant hits and those without
+traits.sig <- pvals[,!is.na(thresholds)]
+traits.insig <- pvals[,is.na(thresholds)]
 #Make plots
-draw_plots(pvals.sig, "plots/GWAS_sig.pdf")
-draw_plots(pvals.insig, "plots/GWAS_insig.pdf")
+draw_plots(traits.sig, "plots/GWAS_sig.pdf")
+draw_plots(traits.insig, "plots/GWAS_insig.pdf")
 
-###########################################        Plot SNP effects       ########################################
+####################################    Pull distance to nearest effector    ##################################
 
-#Which is the significant SNP we identified
-sig_snp <- which(pvals$RedKnight == min(pvals$RedKnight))
-sig_geno <- as.factor(geno[,sig_snp])
+eff <- read.table("../effectors/data/Pc_effectors_blastout.txt")
+colnames(eff) <- c("qseqid", "sseqid", "pident", "length", "mismatch", 
+                   "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore")
+eff$sseqid <- as.integer(gsub("PHYCAscaffold_", "", eff$sseqid))
 
-get_coords <- function(x=-0.15,y=1.3){
-  require(grid)
-  x.coord <- grconvertX(x, "npc", "user")
-  y.coord <- grconvertY(y, "npc", "user")
-  return(c(x.coord, y.coord))
+#For every SNP, calculate distance to nearest effector to get "null" distribution, then look at hits
+nearest_effectors <- snps
+nearest_effectors$distance <- NA
+nearest_effectors$effector <- NA
+
+for(i in 1:nrow(snps)){
+  chrom <- snps$CHROM[i]
+  bp <- snps$BP[i]
+  if(chrom %in% eff$sseqid){
+    eff.chrom <- eff[eff$sseqid == chrom,]
+    #Find distance to nearest start or stop codon
+    distances <- abs(bp - cbind(eff.chrom$sstart, eff.chrom$send))
+    match.index <- which(distances == min(distances), arr.ind=T)
+    eff.match <- eff.chrom[match.index[1],]
+    #If SNP is actually INSIDE the gene, the distance with 0
+    if( (bp >= eff.match$sstart & bp <= eff.match$send) | 
+        (bp >= eff.match$send & bp <= eff.match$sstart)){
+      distance <- 0
+    }else{
+      distance <- distances[match.index]
+    }
+    #Populate data frame with information
+    nearest_effectors$distance[i] <- distance
+    nearest_effectors$effector[i] <- eff.match$qseqid
+  }
 }
 
-pdf("plots/snp_effects.pdf")
-
-old.par <- par(no.readonly = T)
-par(mfrow=c(3,3))
-
-for(i in 1:9){
-  boxplot.data <- boxplot(phenos[,i] ~ sig_geno, plot=F)
-  boxplot(phenos[,i] ~ sig_geno, main=colnames(pvals)[i],
-          xlab = "Genotype",
-          ylab = "AUDPC", 
-          names = c("CC", "CA", "AA"), outline=F)
-  stripchart(phenos[,i] ~ sig_geno, vertical=T, pch=1, add=T, method="jitter", cex=1)
-  par(xpd=NA)
-  text(get_coords()[1], get_coords()[2], LETTERS[i], cex=1.5)
-  par(xpd=F)
+#Pull data just for peak SNPs
+peak_effectors <- merge(peak_markers, nearest_effectors)
+for(i in 1:nrow(peak_effectors)){
+  distance <- peak_effectors$distance[i]
+  peak_effectors$percentile[i] <- 
+    round((sum(nearest_effectors$distance >= distance, na.rm=T) / 
+             sum(!is.na(nearest_effectors$distance)))*100, 2)
 }
 
-par(old.par)
-dev.off()
+write.csv(peak_effectors, "tables/peak_snp_contexts.csv", quote=F, row.names = F)
+
+####################################    Pull lists of SNPs to get pairwise LDs    ##################################
+
+# Get SNP sets to feed to vcftools in order to calculate pairwise LD between all sig SNPs
+# and region +- 400 kb of peak SNPs
+
+#First all significant positions
+write.table(sig_markers[,1:2], "data/ld_snpsets/All_sig_markers.txt", sep="\t",
+            quote=F, row.names=F, col.names=F)
+
+#Now each region
+for(i in 1:nrow(peak_markers)){
+  chrom <- peak_markers$CHROM[i]
+  bp <- peak_markers$BP[i]
+  snps.peak <- snps[snps$CHROM == chrom &
+                      (snps$BP > (bp - 400000) & snps$BP < (bp + 400000)),1:2]
+  write.table(snps.peak,
+              paste("data/ld_snpsets/chrom", chrom, "_peak.table", sep=""),
+              quote=F, row.names = F, col.names = F, sep = "\t")
+}
+
+
+
+
 
 ####################################    Show LD to peak SNPs in significant regions    ##################################
 
@@ -238,20 +355,5 @@ p.summary$R2 <- sapply(p.summary$R2, round, digits=2)
 p.summary$Allelic_effect <- sapply(p.summary$Allelic_effect, round, digits=2)
 
 write.csv(p.summary, "tables/pval_summary.csv", quote=F, row.names = F)
-
-###########################################        Random calculations       ########################################
-
-#This SNP is top X % in each of the traits
-sig_ps <- unlist(pvals[sig_snp,])
-percentiles <- rep(NA, length(sig_ps))
-names(percentiles) = colnames(pvals)
-for(i in 1:ncol(pvals)){
-  percentiles[i] <- sum(pvals[,i] <= sig_ps[i])/nrow(pvals)
-}
-percentiles*100
-
-#MAF
-sig_calls <- sig_geno[!is.na(sig_geno)]
-(sum(sig_calls==1)*2 + sum(sig_calls=2)) / (2*length(sig_calls))
 
 
