@@ -1,6 +1,7 @@
 setwd("~/Documents/Cornell/Pepper_Interactions/paper/gwas/")
 library(grid)
 library(qqman)
+library(fields)
 
 #######################################          Load and clean data       ######################################
 
@@ -121,7 +122,6 @@ draw_plots <- function(pvals.plot, name){
   
 }
 
-
 ###########################################    Identify significant hits     ####################################3
 
 #FDR threshold for each trait
@@ -136,20 +136,22 @@ for(i in 1:p){
 }
 
 #Significant markers for one or more traits
-sig_markers <- snps[apply(sig_hits, 1, any, na.rm=T),]
+sig_markers.indices <- apply(sig_hits, 1, any, na.rm=T)
+sig_markers <- snps[sig_markers.indices,]
+sig_markers <- cbind(sig_markers, pvals[sig_markers.indices,])
 
 #Peak markers for each scaffold
 sig_scaffolds <- unique(sig_markers$CHROM)
 n.sig_scaffolds <- length(sig_scaffolds)
-peak_markers <- matrix(NA, ncol=ncol(sig_markers), 
+peak_markers <- matrix(NA, ncol=3, 
                        nrow=n.sig_scaffolds)
 peak_markers <- as.data.frame(peak_markers)
-colnames(peak_markers) <- colnames(sig_markers)
+colnames(peak_markers) <- colnames(sig_markers)[1:3]
 for(i in 1:n.sig_scaffolds){
   scaffold <- sig_scaffolds[i]
   sig_markers.scaff <- sig_markers[sig_markers$CHROM == scaffold,]
-  peak_marker <- sig_markers.scaff[sig_markers.scaff$BP == 
-                                          min(sig_markers.scaff$BP),]
+  peak_marker <- sig_markers.scaff[sig_markers.scaff$"Across-pepper" == 
+                                     min(sig_markers.scaff$"Across-pepper"),1:3]
   peak_markers[i,] <- peak_marker
 }
 
@@ -243,6 +245,8 @@ for(i in 1:nrow(snps)){
   }
 }
 
+summary(nearest_effectors$distance)
+
 #Pull data just for peak SNPs
 peak_effectors <- merge(peak_markers, nearest_effectors)
 for(i in 1:nrow(peak_effectors)){
@@ -252,108 +256,162 @@ for(i in 1:nrow(peak_effectors)){
              sum(!is.na(nearest_effectors$distance)))*100, 2)
 }
 
-write.csv(peak_effectors, "tables/peak_snp_contexts.csv", quote=F, row.names = F)
+#Add MAFs
+get_maf <- function(x){
+  x <- x[!is.na(x)]
+  p <- (2*sum(x==2) + sum(x==1)) / (2*length(x))
+  pq <- c(p, 1-p)
+  return(pq[which(pq == min(pq))][1])
+}
+mafs <- apply(geno,2,get_maf)
+peak_effectors$MAF <- round(mafs[which(snps$MARKER %in% peak_effectors$MARKER)],2)
 
-####################################    Pull lists of SNPs to get pairwise LDs    ##################################
+#Add traits that are significant for that marker
+peak_effectors$trait <- NA
+for(i in 1:nrow(peak_effectors)){
+  x <- sig_hits[snps$MARKER == peak_effectors$MARKER[i],]
+  peak_effectors$trait[i] <- paste(names(x)[which(x==TRUE)], collapse = ";")
+}
 
-# Get SNP sets to feed to vcftools in order to calculate pairwise LD between all sig SNPs
+#save table
+peak_effectors.print <- peak_effectors[,c("CHROM", "BP", "trait", "MAF", "distance", "effector")]
+
+write.csv(peak_effectors.print, "tables/peak_snp_contexts.csv", quote=F, row.names = F)
+
+####################################    Look at pairwise LDs    ##################################
+
+# Get SNP sets to feed to vcftools in order to calculate 
+#pairwise LD between all sig SNPs
 # and region +- 400 kb of peak SNPs
 
-#First all significant positions
+####### First look at LD between all significant markers
 write.table(sig_markers[,1:2], "data/ld_snpsets/All_sig_markers.txt", sep="\t",
             quote=F, row.names=F, col.names=F)
-
-#Now each region
-for(i in 1:nrow(peak_markers)){
-  chrom <- peak_markers$CHROM[i]
-  bp <- peak_markers$BP[i]
-  snps.peak <- snps[snps$CHROM == chrom &
-                      (snps$BP > (bp - 400000) & snps$BP < (bp + 400000)),1:2]
-  write.table(snps.peak,
-              paste("data/ld_snpsets/chrom", chrom, "_peak.table", sep=""),
-              quote=F, row.names = F, col.names = F, sep = "\t")
+#LD between sig hits on same scaffold
+system_call <- paste("vcftools --vcf ../geno/data/capsici_pepper_subset.vcf --positions ",
+                     "data/ld_snpsets/All_sig_markers.txt",
+                     " --geno-r2 --out data/ld/sig_markers", sep="")
+system(system_call)
+#LD between sig hits on different scaffolds
+system_call <- paste("vcftools --vcf ../geno/data/capsici_pepper_subset.vcf --positions ",
+                                        "data/ld_snpsets/All_sig_markers.txt",
+                                        " --interchrom-geno-r2 --out data/ld/sig_markers", sep="")
+system(system_call)
+#Put them together
+ld.intra <- read.table("data/ld/sig_markers.geno.ld", header=T)
+ld.inter <- read.table("data/ld/sig_markers.interchrom.geno.ld", header=T)
+colnames(ld.intra)[colnames(ld.intra) == "CHR"] <- "CHR1"
+ld.intra$CHR2 <- ld.intra$CHR1
+ld <- rbind(ld.intra, ld.inter)
+ld$snp1 <- paste(ld$CHR1, ld$POS1, sep="_")
+ld$snp2 <- paste(ld$CHR2, ld$POS2, sep="_")
+#Turn into matrix
+markers <- sig_markers$MARKER
+ld.pairwise <- matrix(NA,
+                      nrow = length(markers),
+                      ncol = length(markers), 
+                      dimnames = list(markers,markers))
+for(i in 1:nrow(ld)){
+  ld.pairwise[ld$snp1[i], ld$snp2[i]] <- ld$R.2[i]
 }
 
-
-
-
-
-####################################    Show LD to peak SNPs in significant regions    ##################################
-
-peak_bp <- snps[sig_snp,"BP"]
-
-#Show peak +/- this distance, and for this trait
-distance <- 400000
-trait <- "RedKnight"
-
-filter <- snps$CHROM == 39 & snps$BP > (peak_bp-distance) & snps$BP <= (peak_bp+distance)
-n <- sum(filter)
-
-#Subset snps, genotypes, and pvals
-snps.sub <- snps[filter,]
-pvals.sub <- pvals[filter,trait]
-geno.sub <- geno[,filter]
-
-#get -log10 pvalues
-logp <- -log10(pvals.sub)
-
-#Get LD to peak SNP
-peak <- which(logp == max(logp))
-geno.peak <- geno.sub[,peak]
-lds <- rep(NA, n)
-for(i in 1:n){
-  lds[i] <- cor(geno.sub[,i], geno.peak, use = "complete.obs")^2
-}
-
-#rescale r2 distribution to -log10 distribution for plotting
-lds.rescale <- (max(logp)-min(logp))/(max(lds)-min(lds)) * (lds-max(lds)) + max(logp)
-
-pdf("plots/LD_with_SNP.pdf")
-
+#Make heatplot
+pdf("plots/Pairwise_ld_heatplot.pdf")
 old.par <- par(no.readonly=T)
-par(mar=c(5,5,3,5))
-
-#Plot 1: p-values and LD
-plot(0, type="n", 
-     xlim = range(snps.sub$BP), 
-     ylim=c(0, max(logp)), xaxt="n",
-     ylab = expression(paste("-log"[10], "(", italic("p"), ")")),
-     xlab = "Physical position (Kb) on scaffold 39")
-for(r in 1:n){
-  lines(x=rep(snps.sub$BP[r],2), y = c(0,logp[r]), col='gray')
-}
-points(snps.sub$BP, lds.rescale, pch=2)
-points(snps.sub$BP[peak], lds.rescale[peak], pch=17, cex=0.9, col='orange')
-axis(side=4, at = seq(0,max(logp), length.out=6), labels = seq(0,max(lds), length.out=6))
-axis(side=1, at = seq(100000,1000000,by=100000), labels = seq(100000,1000000,by=100000)/1000)
-mtext(expression(italic("r")^2), side=4, line=3)
-
+par(mar=c(5,4,1,4))
+imagePlot(ld.pairwise, xaxt="n", yaxt="n", col=heat.colors(12)[12:1])
+axis(1,at=seq(0,1,length.out=length(markers)),markers, las=2)
+axis(2,at=seq(0,1,length.out=length(markers)),markers, las=2)
 par(old.par)
 dev.off()
 
+#########  Now look at LD with peak marker in significant regions
+region <- 400000 #how much distance on either side of peak SNP
+trait <- "Across-pepper" #which trait to show p-values for
 
-#### Get and write SNP p-values, R2s, and additive allelic effects ###
+#Put all together in one plot
+pdf("plots/LD_plots.pdf", height=6, width=7)
 
-#Which is the significant SNP we identified
-sig_snp <- which(pvals$RedKnight == min(pvals$RedKnight))
-sig_geno <- geno[,sig_snp]
+old.par <- par(no.readonly=T)
+par(mar=c(5,5,1,5), mfrow=c(4,1), xpd=F, oma=c(0.5,0.5,0.5,0.5))
 
-p.summary <- data.frame("Pepper" = colnames(pvals),
-                        "P" = unlist(pvals[sig_snp,]),
-                        "R2" = NA,
-                        "Allelic_effect" = NA)
+for(i in 1:nrow(peak_markers)){
+  
+  #Create table of markers in region
+  chrom <- peak_markers$CHROM[i]
+  bp <- peak_markers$BP[i]
+  snps.peak <- snps[snps$CHROM == chrom &
+                      (snps$BP > (bp - region) & snps$BP < (bp + region)),1:2]
+  file_name <- paste("data/ld_snpsets/chrom", chrom, "_peak.txt", sep="")
+  write.table(snps.peak,file_name,
+              quote=F, row.names = F, col.names = F, sep = "\t")
+  
+  #Get pairwise LD values from VCFtools
+  system_call <- paste("vcftools --vcf ../geno/data/capsici_pepper_subset.vcf --positions ",
+                      file_name,
+                      " --geno-r2 --out data/ld/chrom",
+                      chrom, "_peak", sep="") 
+ system(system_call)
+ ld <- read.table(paste("data/ld/chrom", chrom, "_peak.geno.ld", sep=""), 
+                  header=T)
+ 
+ #Reformat to pull R2s for SNPs with peak SNP and p-values
+ ld <- ld[ld$POS1 == bp | ld$POS2 == bp,]
+ ld$POS <- apply(ld[,c("POS1", "POS2")], 1, function(x)
+   x[which(x != bp)])
+ for(j in 1:nrow(ld)){
+   ld$pval[j] <- pvals[which(snps$CHROM == chrom & snps$BP == ld$POS[j]),
+                    trait]
+ }
+ 
+ #Add peak SNP LD with itself
+ ld <- rbind(ld,
+             c(chrom, bp, bp, NA, 1, bp, 
+               pvals[snps$CHROM == chrom & snps$BP == bp,trait]))
+ 
+ #rescale r2 distribution to -log10 distribution for plotting
+ ld$logp <- -log10(ld$pval)
+ ld$ld.scale <- (max(ld$logp)-min(ld$logp))/(max(ld$R.2)-min(ld$R.2)) * (ld$R.2-max(ld$R.2)) + max(ld$logp)
+ 
+ ### Make plot
+ 
+ plot(0, type="n", 
+      xlim = range(ld$POS), 
+      ylim=c(0, max(ld$logp)*1.05), xaxt="n",
+      ylab = expression(paste("-log"[10], "(", italic("p"), ")")),
+      xlab = paste("Physical position (Kb) on scaffold", chrom))
+ for(r in 1:nrow(ld)){
+   lines(x=rep(ld$POS[r],2), y = c(0,ld$logp[r]), col='gray')
+ }
+ points(ld$POS, ld$ld.scale, pch=2)
+ points(ld$POS[nrow(ld)], ld$ld.scale[nrow(ld)], pch=17, cex=0.9, col='orange')
+ axis(side=4, at = seq(0,max(ld$logp), length.out=6), labels = seq(0,max(ld$R.2), length.out=6))
 
-for(i in 1:nrow(p.summary)){
-  mod <- lm(phenos_transformed[,i] ~ as.integer(as.character(sig_geno)))
-  p.summary$R2[i] <- summary(mod)$r.squared
-  effect <- mod$coefficients[2]
-  p.summary$Allelic_effect[i] <- effect
+ mtext(expression(italic("r")^2), side=4, line=3)
+ 
+ #Draw rectangle
+ par(xpd=NA)
+ xleft <- grconvertX(0, from = "npc", to = "user")
+ xright <-grconvertX(1, from = "npc", to = "user")
+ ybot <- grconvertY(-0.2, from = "npc", to = "user")
+ ytop <- grconvertY(-0.05, from = "npc", to = "user")
+ rect(xleft, ybot, xright, ytop)
+ 
+ #####Add effector locations
+ eff.chrom <- eff[eff$sseqid == chrom & eff$send <= (bp+region) & eff$send >= (bp-region),]
+ for(j in 1:nrow(eff.chrom)){
+   rect(eff.chrom$sstart[j], ybot, eff.chrom$send[j], ytop, col="red")
+ }
+ 
+ #Add X axis
+ par(xpd=FALSE)
+ axis(side=1, at = seq(0,2000000,by=100000)[seq(0,2000000,by=100000) >= (bp-region) &
+                                              seq(0,2000000,by=100000) <= (bp+region)], 
+      labels = (seq(0,2000000,by=100000)/1000)[seq(0,2000000,by=100000) >= (bp-region) &
+                                                 seq(0,2000000,by=100000) <= (bp+region)],
+      pos=ybot)
+ 
 }
 
-p.summary$P <- sapply(p.summary$P, signif, digits=2)
-p.summary$R2 <- sapply(p.summary$R2, round, digits=2)
-p.summary$Allelic_effect <- sapply(p.summary$Allelic_effect, round, digits=2)
-
-write.csv(p.summary, "tables/pval_summary.csv", quote=F, row.names = F)
-
-
+par(old.par)
+dev.off()
