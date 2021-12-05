@@ -135,6 +135,26 @@ for(i in 1:p){
   print(which(sig_hits[,i] <- pvals[,i] <= thresholds[i]))
 }
 
+#Make table for all marker-trait associations
+sig_hit.indices <- which(sig_hits, arr.ind=T)
+associations <- data.frame("Chromosome" = rep(NA, nrow(sig_hit.indices)),
+                           "Position" = NA,
+                           "Trait" = NA,
+                           "P_value" = NA,
+                           "Adjusted_P_value" = NA)
+for(i in 1:nrow(sig_hit.indices)){
+  snp.index <- sig_hit.indices[i,1]
+  trait.index <- sig_hit.indices[i,2]
+  associations[i,] <- c(snps$CHROM[snp.index],
+                        snps$BP[snp.index],
+                        colnames(sig_hits)[trait.index],
+                        signif(pvals[snp.index,trait.index],2),
+                        signif(p.adjust(pvals[,trait.index], method="fdr")[snp.index],2))
+}
+associations <- associations[order(associations$Chromosome, associations$Position),]
+write.csv(associations, "tables/all_associations.csv", quote=F, row.names = F)
+
+
 #Significant markers for one or more traits
 sig_markers.indices <- apply(sig_hits, 1, any, na.rm=T)
 sig_markers <- snps[sig_markers.indices,]
@@ -192,7 +212,7 @@ for(i in 1:nrow(peak_markers)){ #Loop through peak markers
   }
   
   #Round values and append info for that marker to dataframe
-  marker.summary$R2 <- sapply(marker.summary$R2, round, digits=2)
+  marker.summary$R2 <- sapply(marker.summary$R2, round, digits=4)
   marker.summary$Effect <- sapply(marker.summary$Effect, round, digits=2)
   marker.summary$Hit_percentile <- sapply(marker.summary$Hit_percentile, round, digits=2)
   colnames(marker.summary)[2:ncol(marker.summary)] <- 
@@ -282,7 +302,7 @@ write.csv(peak_effectors.print, "tables/peak_snp_contexts.csv", quote=F, row.nam
 
 # Get SNP sets to feed to vcftools in order to calculate 
 #pairwise LD between all sig SNPs
-# and region +- 400 kb of peak SNPs
+# and region +- X kb of peak SNPs
 
 ####### First look at LD between all significant markers
 write.table(sig_markers[,1:2], "data/ld_snpsets/All_sig_markers.txt", sep="\t",
@@ -314,11 +334,12 @@ ld.pairwise <- matrix(NA,
 for(i in 1:nrow(ld)){
   ld.pairwise[ld$snp1[i], ld$snp2[i]] <- ld$R.2[i]
 }
+diag(ld.pairwise) <- 1
 
 #Make heatplot
-pdf("plots/Pairwise_ld_heatplot.pdf")
+pdf("plots/Pairwise_ld_heatplot.pdf", height=6,width=7)
 old.par <- par(no.readonly=T)
-par(mar=c(5,4,1,4))
+par(mar=c(6,6,1,4))
 imagePlot(ld.pairwise, xaxt="n", yaxt="n", col=heat.colors(12)[12:1])
 axis(1,at=seq(0,1,length.out=length(markers)),markers, las=2)
 axis(2,at=seq(0,1,length.out=length(markers)),markers, las=2)
@@ -329,19 +350,29 @@ dev.off()
 region <- 400000 #how much distance on either side of peak SNP
 trait <- "Across-pepper" #which trait to show p-values for
 
+#Pull all genes to show on track
+genes <- read.delim("../effectors/data/annotations.csv", sep = "\t")
+genes$chrom <- as.integer(gsub("PHYCAscaffold_","",genes$chrom))
+
 #Put all together in one plot
 pdf("plots/LD_plots.pdf", height=6, width=7)
 
 old.par <- par(no.readonly=T)
-par(mar=c(5,5,1,5), mfrow=c(4,1), xpd=F, oma=c(0.5,0.5,0.5,0.5))
+par(mar=c(5,5,1,5), mfrow=c(4,1), xpd=F, oma=c(0.5,0.5,0.8,0.5))
 
+#Add lengths of scaffolds 1, 37, 39, and 93
+
+chrom_lengths <- c(2170955, 577888, 591971, 150113)
 for(i in 1:nrow(peak_markers)){
   
   #Create table of markers in region
   chrom <- peak_markers$CHROM[i]
   bp <- peak_markers$BP[i]
+  
+  region.start <- max(0, bp - region)
+  region.stop <- min(chrom_lengths[i], bp + region)
   snps.peak <- snps[snps$CHROM == chrom &
-                      (snps$BP > (bp - region) & snps$BP < (bp + region)),1:2]
+                      (snps$BP > region.start & snps$BP < region.stop),1:2]
   file_name <- paste("data/ld_snpsets/chrom", chrom, "_peak.txt", sep="")
   write.table(snps.peak,file_name,
               quote=F, row.names = F, col.names = F, sep = "\t")
@@ -375,36 +406,70 @@ for(i in 1:nrow(peak_markers)){
  
  ### Make plot
  
+ #Basic plot
  plot(0, type="n", 
-      xlim = range(ld$POS), 
+      xlim = c(region.start, region.stop), 
       ylim=c(0, max(ld$logp)*1.05), xaxt="n",
       ylab = expression(paste("-log"[10], "(", italic("p"), ")")),
-      xlab = paste("Physical position (Kb) on scaffold", chrom))
+      xlab = paste("Physical position (kb) on scaffold", chrom))
+ #Add lines for p-values, orange if significant
  for(r in 1:nrow(ld)){
-   lines(x=rep(ld$POS[r],2), y = c(0,ld$logp[r]), col='gray')
+   if(paste(ld$CHR[r], ld$POS[r]) %in% paste(sig_markers$CHROM, sig_markers$BP)){
+     line_col <- 'orange'
+   }else{
+     line_col <- 'gray'
+   }
+   lines(x=rep(ld$POS[r],2), y = c(0,ld$logp[r]), col=line_col)
  }
+ #Add triangles for LD, orange if peak
  points(ld$POS, ld$ld.scale, pch=2)
  points(ld$POS[nrow(ld)], ld$ld.scale[nrow(ld)], pch=17, cex=0.9, col='orange')
  axis(side=4, at = seq(0,max(ld$logp), length.out=6), labels = seq(0,max(ld$R.2), length.out=6))
 
  mtext(expression(italic("r")^2), side=4, line=3)
  
- #Draw rectangle
+ #dashed line at 0.5
+ abline(h=(max(ld$logp)-min(ld$logp))/(max(ld$R.2)-min(ld$R.2)) * (0.5-max(ld$R.2)) + max(ld$logp),
+        lwd = 0.5, lty=2)
+ 
+ #Get coordinates to add track at bottom for genes
  par(xpd=NA)
  xleft <- grconvertX(0, from = "npc", to = "user")
  xright <-grconvertX(1, from = "npc", to = "user")
  ybot <- grconvertY(-0.2, from = "npc", to = "user")
  ytop <- grconvertY(-0.05, from = "npc", to = "user")
+
+ #####Add genes with effectors and polygalacturonases highlited 
+ eff.chrom <- eff[eff$sseqid == chrom & eff$send <= region.stop & eff$send >= region.start,]
+ genes.chrom <- genes[genes$chrom == chrom & genes$end <= region.stop & genes$end >= region.start,]
+ pg.chrom <- genes.chrom[grep("polygalacturonase", ignore.case=T, genes.chrom$KEGGdef),] #Add polygalacturonase annotations for scaffold 93
+ for(j in 1:nrow(genes.chrom)){
+   color <- c("lightblue", "gray")[(j %% 2) + 1]
+   rect(genes.chrom$start[j], ybot, genes.chrom$end[j], ytop, 
+        col=color, border=color)
+ }
+ for(j in 1:nrow(eff.chrom)){
+   rect(eff.chrom$sstart[j], ybot, eff.chrom$send[j], ytop, 
+        col="red", border="red")
+ }
+ if(nrow(pg.chrom) > 0){
+   for(j in 1:nrow(pg.chrom)){
+     rect(pg.chrom$start[j], ybot, pg.chrom$end[j], ytop, 
+          col="purple", border="purple")
+   }
+ }
  rect(xleft, ybot, xright, ytop)
  
- #####Add effector locations
- eff.chrom <- eff[eff$sseqid == chrom & eff$send <= (bp+region) & eff$send >= (bp-region),]
- for(j in 1:nrow(eff.chrom)){
-   rect(eff.chrom$sstart[j], ybot, eff.chrom$send[j], ytop, col="red")
- }
+ #Add pane letter
+ text(grconvertX(-0.07, from = "npc", to = "user"),
+      grconvertY(1.13, from = "npc", to = "user"),
+      LETTERS[i], cex=1.2)
  
  #Add X axis
  par(xpd=FALSE)
+ axis(side=1, at = seq(0,2000000,by=10000), 
+      labels=rep("",length(seq(0,2000000,by=10000))),
+      pos = ybot)
  axis(side=1, at = seq(0,2000000,by=100000)[seq(0,2000000,by=100000) >= (bp-region) &
                                               seq(0,2000000,by=100000) <= (bp+region)], 
       labels = (seq(0,2000000,by=100000)/1000)[seq(0,2000000,by=100000) >= (bp-region) &
@@ -415,3 +480,4 @@ for(i in 1:nrow(peak_markers)){
 
 par(old.par)
 dev.off()
+
